@@ -5,12 +5,16 @@ FastAPI web scraper auto-generated based on the target website's
 DOM structure and a provided Pydantic schema.
 """
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Optional
 import httpx
 from bs4 import BeautifulSoup
 import time
+import json
+from datetime import datetime
+from pathlib import Path
 
 app = FastAPI(
     title="Weaver Auto-Scraper",

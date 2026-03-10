@@ -1,9 +1,5 @@
 """
-AutoAPI — SELF-HEALED by Hermes Agent
-Target: http://localhost:8080 (Northbridge University Announcements)
-Original Generated: 2025-03-05T10:00:00Z
-Self-Healed At:     2025-03-05T10:47:33Z
-AutoAPI — SELF-HEALED by Weaver Agent
+Weaver Auto-Scraper — SELF-HEALED by Weaver Agent
 ============================================================
 The target website's DOM structure changed. The agent has
 re-analysed the structure and updated the CSS selectors
