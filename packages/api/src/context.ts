@@ -1,4 +1,4 @@
-import { auth } from "@hermes-on-call/auth";
+import { auth } from "@agiaas/auth";
 
 export async function createContext({ req }: { req: Request }) {
 	const session = await auth.api.getSession({

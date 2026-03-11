@@ -1,4 +1,4 @@
-import { Button } from "@hermes-on-call/ui/components/button";
+import { Button } from "@agiaas/ui/components/button";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -7,8 +7,8 @@ import {
 	DropdownMenuLabel,
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
-} from "@hermes-on-call/ui/components/dropdown-menu";
-import { Skeleton } from "@hermes-on-call/ui/components/skeleton";
+} from "@agiaas/ui/components/dropdown-menu";
+import { Skeleton } from "@agiaas/ui/components/skeleton";
 import { Link, useNavigate } from "@tanstack/react-router";
 
 import { authClient } from "@/lib/auth-client";

@@ -1,5 +1,5 @@
 {
-	"name": "@hermes-on-call/env",
+	"name": "@agiaas/env",
 	"version": "0.0.0",
 	"private": true,
 	"type": "module",
@@ -13,7 +13,7 @@
 		"zod": "catalog:"
 	},
 	"devDependencies": {
-		"@hermes-on-call/config": "workspace:*",
+		"@agiaas/config": "workspace:*",
 		"@types/node": "catalog:",
 		"typescript": "^5"
 	}

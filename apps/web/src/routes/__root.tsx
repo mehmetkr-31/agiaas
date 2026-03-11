@@ -1,4 +1,4 @@
-import { Toaster } from "@hermes-on-call/ui/components/sonner";
+import { Toaster } from "@agiaas/ui/components/sonner";
 import type { QueryClient } from "@tanstack/react-query";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import {

@@ -23,7 +23,7 @@
 		"baseUrl": ".",
 		"paths": {
 			"@/*": ["./src/*"],
-			"@hermes-on-call/ui/*": ["../../packages/ui/src/*"]
+			"@agiaas/ui/*": ["../../packages/ui/src/*"]
 		}
 	}
 }

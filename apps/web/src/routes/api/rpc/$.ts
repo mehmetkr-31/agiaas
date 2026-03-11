@@ -1,5 +1,5 @@
-import { createContext } from "@hermes-on-call/api/context";
-import { appRouter } from "@hermes-on-call/api/routers/index";
+import { createContext } from "@agiaas/api/context";
+import { appRouter } from "@agiaas/api/routers/index";
 import { OpenAPIHandler } from "@orpc/openapi/fetch";
 import { OpenAPIReferencePlugin } from "@orpc/openapi/plugins";
 import { onError } from "@orpc/server";

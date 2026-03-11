@@ -41,7 +41,7 @@ function RouteComponent() {
 			<header className="flex h-14 items-center justify-between border-b bg-background px-6">
 				<div className="flex items-center gap-3">
 					<Logo className="h-7 w-auto" />
-					<span className="font-bold text-lg tracking-tight">APIaaS</span>
+					<span className="font-bold text-lg tracking-tight">AGIaaS</span>
 				</div>
 				<div className="flex items-center gap-4">
 					<div className="font-mono text-muted-foreground text-xs">

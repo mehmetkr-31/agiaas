@@ -1,11 +1,11 @@
 {
-	"extends": "@hermes-on-call/config/tsconfig.base.json",
+	"extends": "@agiaas/config/tsconfig.base.json",
 	"compilerOptions": {
 		"baseUrl": ".",
 		"jsx": "react-jsx",
 		"lib": ["ESNext", "DOM", "DOM.Iterable"],
 		"paths": {
-			"@hermes-on-call/ui/*": ["./src/*"]
+			"@agiaas/ui/*": ["./src/*"]
 		}
 	},
 	"include": ["src/**/*.ts", "src/**/*.tsx"],

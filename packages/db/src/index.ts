@@ -1,4 +1,4 @@
-import { env } from "@hermes-on-call/env/server";
+import { env } from "@agiaas/env/server";
 import { createClient } from "@libsql/client";
 import { drizzle } from "drizzle-orm/libsql";
 

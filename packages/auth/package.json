@@ -1,5 +1,5 @@
 {
-	"name": "@hermes-on-call/auth",
+	"name": "@agiaas/auth",
 	"type": "module",
 	"exports": {
 		".": {
@@ -11,14 +11,14 @@
 	},
 	"scripts": {},
 	"dependencies": {
-		"@hermes-on-call/db": "workspace:*",
-		"@hermes-on-call/env": "workspace:*",
+		"@agiaas/db": "workspace:*",
+		"@agiaas/env": "workspace:*",
 		"better-auth": "catalog:",
 		"dotenv": "catalog:",
 		"zod": "catalog:"
 	},
 	"devDependencies": {
-		"@hermes-on-call/config": "workspace:*",
+		"@agiaas/config": "workspace:*",
 		"typescript": "^5"
 	}
 }

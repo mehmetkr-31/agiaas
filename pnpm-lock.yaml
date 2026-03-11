@@ -68,7 +68,7 @@ importers:
 
   .:
     dependencies:
-      '@hermes-on-call/env':
+      '@agiaas/env':
         specifier: workspace:*
         version: link:packages/env
       dotenv:
@@ -78,12 +78,12 @@ importers:
         specifier: 'catalog:'
         version: 4.3.6
     devDependencies:
+      '@agiaas/config':
+        specifier: workspace:*
+        version: link:packages/config
       '@biomejs/biome':
         specifier: ^2.2.0
         version: 2.4.6
-      '@hermes-on-call/config':
-        specifier: workspace:*
-        version: link:packages/config
       '@types/node':
         specifier: 'catalog:'
         version: 22.19.15
@@ -96,16 +96,16 @@ importers:
 
   apps/web:
     dependencies:
-      '@hermes-on-call/api':
+      '@agiaas/api':
         specifier: workspace:*
         version: link:../../packages/api
-      '@hermes-on-call/auth':
+      '@agiaas/auth':
         specifier: workspace:*
         version: link:../../packages/auth
-      '@hermes-on-call/env':
+      '@agiaas/env':
         specifier: workspace:*
         version: link:../../packages/env
-      '@hermes-on-call/ui':
+      '@agiaas/ui':
         specifier: workspace:*
         version: link:../../packages/ui
       '@libsql/client':
@@ -148,8 +148,8 @@ importers:
         specifier: ^1.166.7
         version: 1.166.7(@tanstack/react-router@1.166.7(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(vite@7.3.1(@types/node@25.4.0)(jiti@2.6.1)(lightningcss@1.31.1)(tsx@4.21.0))
       badge:
-        specifier: link:@hermes-on-call/ui/components/badge
-        version: link:@hermes-on-call/ui/components/badge
+        specifier: link:@agiaas/ui/components/badge
+        version: link:@agiaas/ui/components/badge
       better-auth:
         specifier: 'catalog:'
         version: 1.5.2(@prisma/client@7.4.2(prisma@7.4.2(@types/react@19.2.14)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(typescript@5.9.3))(typescript@5.9.3))(@tanstack/react-start@1.166.7(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(vite@7.3.1(@types/node@25.4.0)(jiti@2.6.1)(lightningcss@1.31.1)(tsx@4.21.0)))(drizzle-kit@0.31.9)(drizzle-orm@0.45.1(@electric-sql/pglite@0.3.15)(@libsql/client@0.15.15)(@prisma/client@7.4.2(prisma@7.4.2(@types/react@19.2.14)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(typescript@5.9.3))(typescript@5.9.3))(kysely@0.28.11)(mysql2@3.15.3)(postgres@3.4.7)(prisma@7.4.2(@types/react@19.2.14)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(typescript@5.9.3)))(mongodb@7.1.0)(mysql2@3.15.3)(prisma@7.4.2(@types/react@19.2.14)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(typescript@5.9.3))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
@@ -172,8 +172,8 @@ importers:
         specifier: 'catalog:'
         version: 19.2.4(react@19.2.4)
       separator:
-        specifier: link:@hermes-on-call/ui/components/separator
-        version: link:@hermes-on-call/ui/components/separator
+        specifier: link:@agiaas/ui/components/separator
+        version: link:@agiaas/ui/components/separator
       sonner:
         specifier: 'catalog:'
         version: 2.0.7(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
@@ -190,7 +190,7 @@ importers:
         specifier: 'catalog:'
         version: 4.3.6
     devDependencies:
-      '@hermes-on-call/config':
+      '@agiaas/config':
         specifier: workspace:*
         version: link:../../packages/config
       '@tanstack/react-query-devtools':
@@ -229,13 +229,13 @@ importers:
 
   packages/api:
     dependencies:
-      '@hermes-on-call/auth':
+      '@agiaas/auth':
         specifier: workspace:*
         version: link:../auth
-      '@hermes-on-call/db':
+      '@agiaas/db':
         specifier: workspace:*
         version: link:../db
-      '@hermes-on-call/env':
+      '@agiaas/env':
         specifier: workspace:*
         version: link:../env
       '@orpc/client':
@@ -260,7 +260,7 @@ importers:
         specifier: 'catalog:'
         version: 4.3.6
     devDependencies:
-      '@hermes-on-call/config':
+      '@agiaas/config':
         specifier: workspace:*
         version: link:../config
       typescript:
@@ -269,10 +269,10 @@ importers:
 
   packages/auth:
     dependencies:
-      '@hermes-on-call/db':
+      '@agiaas/db':
         specifier: workspace:*
         version: link:../db
-      '@hermes-on-call/env':
+      '@agiaas/env':
         specifier: workspace:*
         version: link:../env
       better-auth:
@@ -285,7 +285,7 @@ importers:
         specifier: 'catalog:'
         version: 4.3.6
     devDependencies:
-      '@hermes-on-call/config':
+      '@agiaas/config':
         specifier: workspace:*
         version: link:../config
       typescript:
@@ -296,7 +296,7 @@ importers:
 
   packages/db:
     dependencies:
-      '@hermes-on-call/env':
+      '@agiaas/env':
         specifier: workspace:*
         version: link:../env
       '@libsql/client':
@@ -315,7 +315,7 @@ importers:
         specifier: 'catalog:'
         version: 4.3.6
     devDependencies:
-      '@hermes-on-call/config':
+      '@agiaas/config':
         specifier: workspace:*
         version: link:../config
       drizzle-kit:
@@ -337,7 +337,7 @@ importers:
         specifier: 'catalog:'
         version: 4.3.6
     devDependencies:
-      '@hermes-on-call/config':
+      '@agiaas/config':
         specifier: workspace:*
         version: link:../config
       '@types/node':
@@ -391,7 +391,7 @@ importers:
         specifier: ^1.3.4
         version: 1.4.0
     devDependencies:
-      '@hermes-on-call/config':
+      '@agiaas/config':
         specifier: workspace:*
         version: link:../config
       '@types/react':
