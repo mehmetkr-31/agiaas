@@ -22,6 +22,7 @@ import sqlite3
 import json
 import sys
 from datetime import datetime
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, BackgroundTasks, Request, HTTPException
 import uvicorn
 from run_agent import AIAgent
@@ -37,7 +38,7 @@ script_dir = pathlib.Path(__file__).parent.resolve()
 if str(script_dir) not in sys.path:
     sys.path.append(str(script_dir))
 
-app = FastAPI(title="Hermes Webhook Receiver")
+app = FastAPI(title="Hermes Webhook Receiver", lifespan=lifespan)
 HERMES_CMD    = os.getenv("HERMES_CMD", "/Users/alikar/.local/bin/hermes")
 
 WORKING_DIR   = pathlib.Path(__file__).parent.parent.parent.resolve()
@@ -61,16 +62,17 @@ def get_global_config(key: str) -> str:
         logging.error(f"Failed to read {key} from DB: {e}")
     return ""
 
-
-@app.on_event("startup")
-async def startup_event():
-    """Start the Telegram bot thread when the server starts."""
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Start the Telegram bot thread when the server starts and cleanup on shutdown."""
     try:
         from reporter import start_bot_thread
         start_bot_thread()
-        logging.info("🤖 Telegram bot thread started via FastAPI startup event.")
+        logging.info("🤖 Telegram bot thread started via FastAPI lifespan.")
+        yield
     except Exception as e:
-        logging.warning(f"Failed to start Telegram bot: {e}")
+        logging.warning(f"Failed to manage Telegram bot lifecycle: {e}")
+        yield
 
 
 # ── Signature verification ─────────────────────────────────────────────────────
@@ -306,29 +308,40 @@ async def get_logs():
 
 @app.post("/chat")
 async def chat_with_hermes(request: Request):
-    """Direct chat with Hermes."""
+    """Direct chat with Hermes via library."""
     data = await request.json()
     message = data.get("message")
     if not message:
         raise HTTPException(status_code=400, detail="Missing message")
 
-    logging.info(f"💬 Chat request: {message[:50]}...")
-    
-    logging.info(f"💬 Chat request: {message[:50]}...")
+    logging.info(f"💬 Chat request (API): {message[:50]}...")
     
     try:
+        # Diagnostic: Check API Keys
+        active_key = os.getenv("OPENROUTER_API_KEY") or os.getenv("NOUS_API_KEY")
+        
+        # Determine base_url and default model
+        is_nous = active_key and active_key.startswith("sk-2yd")
+        target_base_url = NOUS_API_BASE_URL if is_nous else OPENROUTER_BASE_URL
+        fallback_model   = "Hermes-4-405B" if is_nous else "anthropic/claude-3-5-sonnet"
+        target_model     = get_global_config("MODEL") or fallback_model
+
         # Initialize Agent
         agent = AIAgent(
-            model=get_global_config("MODEL") or "anthropic/claude-3-5-sonnet",
+            model=target_model,
+            api_key=active_key,
+            base_url=target_base_url,
             quiet_mode=True,
             enabled_toolsets=["terminal", "file", "web"],
-            skip_memory=True # Keep stateless for API
+            skip_memory=True # Keep stateless for direct API calls
         )
         
         response = agent.chat(message)
         
-        if not response.strip():
+        if not response or not str(response).strip():
             response = "Hermes did not provide a response."
+        else:
+            response = str(response)
 
         return {"response": response}
     except Exception as e:

@@ -6,11 +6,10 @@ Hermes handles everything: reading diff, code review, posting gh pr review.
 import os, subprocess, pathlib, logging, time
 from datetime import datetime
 from dotenv import load_dotenv
-from reporter import send_telegram_message, request_approval
+from run_agent import AIAgent
+from reporter import send_telegram_message, request_approval, get_global_config, NOUS_API_BASE_URL, OPENROUTER_BASE_URL
 
 load_dotenv()
-
-HERMES_CMD  = os.getenv("HERMES_CMD", "/Users/alikar/.local/bin/hermes")
 AGENT_ROOT  = pathlib.Path(__file__).parent.parent.parent.resolve()
 DATA_DIR    = AGENT_ROOT.parent.parent.resolve() / ".tmp"
 LOG_DIR     = AGENT_ROOT / "agent" / "on_call_logs"
@@ -66,34 +65,42 @@ I will present this to the human for approval. DO NOT use the terminal tool to p
     log_file = LOG_DIR / f"pr_{pr_number}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
     main_log = LOG_DIR / "monitoring.jsonl"
     
-    full_output = []
-    # Set WORKING_DIR to the TARGET repository, not the Hermes project
-    proc = subprocess.Popen(
-        [HERMES_CMD, "chat", "--model", "Hermes-4-405B", "-q", prompt, "--toolsets", "terminal,file,web"],
-        stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-        stdin=subprocess.PIPE, text=True,
-        env=os.environ.copy(), bufsize=1, cwd=str(repo_path),
-    )
     try:
-        proc.stdin.write("s\n" * 10)
-        proc.stdin.flush()
-    except Exception:
-        pass
-
-    with open(log_file, "w", buffering=1) as f_private, open(main_log, "a", buffering=1) as f_main:
-        start_msg = f"\n🔀 [Hermes PR Agent] Reviewing @ {datetime.now().isoformat()} for PR #{pr_number}\n"
-        f_private.write(start_msg); f_main.write(start_msg)
+        # Diagnostic: Check API Keys
+        active_key = os.getenv("OPENROUTER_API_KEY") or os.getenv("NOUS_API_KEY")
         
-        for line in proc.stdout:
-            if line:
-                full_output.append(line)
-                f_private.write(line); f_private.flush()
-                f_main.write(line); f_main.flush()
-                
-    proc.wait()
+        # Determine base_url and default model
+        is_nous = active_key and active_key.startswith("sk-2yd")
+        target_base_url = NOUS_API_BASE_URL if is_nous else OPENROUTER_BASE_URL
+        fallback_model   = "Hermes-4-405B" if is_nous else "anthropic/claude-3-5-sonnet"
+        target_model     = get_global_config("MODEL") or fallback_model
+
+        # Initialize Agent
+        agent = AIAgent(
+            model=target_model,
+            api_key=active_key,
+            base_url=target_base_url,
+            quiet_mode=True,
+            enabled_toolsets=["terminal", "file", "web"],
+            ephemeral_system_prompt="You are an autonomous on-call bot. Your goal is to review Pull Requests and provide structured feedback."
+        )
+        
+        # Execute natively
+        result = agent.run_conversation(prompt)
+        output_text = result.get("final_response", "")
+        
+        # Log to private and main monitoring
+        with open(log_file, "w") as f, open(main_log, "a") as f_main:
+            entry = f"\n🔀 [PR Agent] PR #{pr_number} | {owner}/{repo} | {datetime.now().isoformat()}\n"
+            f.write(entry); f.write(output_text)
+            f_main.write(entry); f_main.write(f"Title: {title}\nReview complete.\n")
+
+    except Exception as e:
+        logging.error(f"PR agent failed: {e}")
+        send_telegram_message(f"❌ Hermes analysis failed for PR #{pr_number}: {e}")
+        return
 
     # Extract analysis and verdict
-    output_text = "".join(full_output)
     analysis = ""
     verdict = "comment"
 

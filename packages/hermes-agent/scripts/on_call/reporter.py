@@ -72,6 +72,31 @@ HERMES_CMD     = os.getenv("HERMES_CMD", "/Users/alikar/.local/bin/hermes")
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 
+# ── Session Management ──────────────────────────────────────────────────────
+
+class SessionManager:
+    """Manages conversation history for Telegram users."""
+    def __init__(self):
+        self.histories: Dict[str, list] = {}
+
+    def get_history(self, chat_id: str) -> list:
+        return self.histories.get(chat_id, [])
+
+    def update_history(self, chat_id: str, history: list):
+        # Keep history manageable
+        if len(history) > 40:
+            history = history[:1] + history[-39:] # Keep system prompt + last turns
+        self.histories[chat_id] = history
+
+    def clear_history(self, chat_id: str):
+        if chat_id in self.histories:
+            del self.histories[chat_id]
+            return True
+        return False
+
+# Global instance
+sessions = SessionManager()
+
 # ── Approval Database Interface ─────────────────────────────────────────────
 
 def set_approval_status(approval_id: str, status: str, message_id: str = None, chat_id: str = None):
@@ -189,12 +214,20 @@ def send_telegram_message(text: str, chat_id: Optional[str] = None) -> bool:
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "🤖 *Hermes Interactive Bot*\n\n"
+        "/new — Clear conversation history\n"
         "/status — System health & pending actions\n"
         "/logs [n] — Last N log lines (default 30)\n"
         "/help — This message\n\n"
         "I will also send you approval requests with buttons for sensitive actions.",
         parse_mode="Markdown"
     )
+
+async def new_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat_id = str(update.effective_chat.id)
+    if sessions.clear_history(chat_id):
+        await update.message.reply_text("🧼 *Memory cleared.* Starting fresh!", parse_mode="Markdown")
+    else:
+        await update.message.reply_text("Memory was already empty.")
 
 async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     msg = "🏢 *Hermes Status*\n✅ All systems operational.\n"
@@ -254,19 +287,19 @@ async def chat_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Diagnostic: Check API Keys
         active_key = os.getenv("OPENROUTER_API_KEY") or os.getenv("NOUS_API_KEY")
         if not active_key:
-            logging.error("❌ NO API KEY FOUND in environment! (Checked OPENROUTER_API_KEY and NOUS_API_KEY)")
-        else:
-            logging.info(f"🔑 Using API key: {active_key[:6]}...{active_key[-4:]}")
+            logging.error("❌ NO API KEY FOUND in environment!")
+            await update.message.reply_text("❌ API Key missing. Check server environment.")
+            return
 
-        # Determine base_url and default model based on key type
-        # Force Nous API if the key matches the pattern
+        # Determine base_url and default model
         is_nous = active_key and active_key.startswith("sk-2yd")
-        
         target_base_url = NOUS_API_BASE_URL if is_nous else OPENROUTER_BASE_URL
         fallback_model   = "Hermes-4-405B" if is_nous else "anthropic/claude-3-5-sonnet"
         target_model     = get_global_config("MODEL") or fallback_model
         
-        logging.info(f"📡 Target API: {target_base_url} | Model: {target_model}")
+        # Get history
+        chat_id_str = str(update.effective_chat.id)
+        history = sessions.get_history(chat_id_str)
 
         # Initialize Agent
         agent = AIAgent(
@@ -278,8 +311,20 @@ async def chat_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             platform="telegram"
         )
         
-        # Use .chat() for a simple turn-based response
-        response = agent.chat(message_text)
+        # Notify user of tool progress via typing action or status msg if possible
+        # For simplicity, we stick to typing for now
+        
+        # Use .run_conversation for multi-turn
+        result = agent.run_conversation(
+            message_text,
+            conversation_history=history
+        )
+        
+        response = result.get("final_response")
+        new_history = result.get("messages", [])
+        
+        # Update session memory
+        sessions.update_history(chat_id_str, new_history)
         
         if not response or not str(response).strip():
             response = "Hermes did not provide a message response."
@@ -342,6 +387,7 @@ def start_bot():
     
     application.add_handler(CommandHandler("start", help_command))
     application.add_handler(CommandHandler("help", help_command))
+    application.add_handler(CommandHandler("new", new_command))
     application.add_handler(CommandHandler("status", status_command))
     application.add_handler(CommandHandler("logs", logs_command))
     application.add_handler(CallbackQueryHandler(callback_handler))

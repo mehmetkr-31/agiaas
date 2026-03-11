@@ -6,12 +6,17 @@ Hermes handles everything: analyzing changed files, maybe running tests.
 import os, subprocess, pathlib, logging
 from datetime import datetime
 from dotenv import load_dotenv
+from run_agent import AIAgent
 
 try:
-    from reporter import send_telegram_message
+    from reporter import send_telegram_message, get_global_config, NOUS_API_BASE_URL, OPENROUTER_BASE_URL
 except ImportError:
     def send_telegram_message(msg):
         logging.info(f"Telegram MSG: {msg}")
+    def get_global_config(key):
+        return os.getenv(key, "")
+    NOUS_API_BASE_URL = "https://inference-api.nousresearch.com/v1"
+    OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 
 load_dotenv()
 
@@ -23,63 +28,63 @@ LOG_DIR.mkdir(parents=True, exist_ok=True)
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 
-def handle_push(branch: str, pusher: str = "", head_commit_msg: str = "", head_commit_url: str = ""):
-    logging.info(f"🚀 Dispatching Hermes for Push to {branch}")
+def handle_push(branch: str, pusher: str = "", head_commit_msg: str = "", head_commit_url: str = "", owner: str = None, repo: str = None):
+    project_slug = f"{owner}/{repo}" if owner and repo else branch
+    logging.info(f"🚀 Dispatching Hermes for Push to {project_slug} ({branch})")
 
     send_telegram_message(
-        f"🚀 *GitHub Push to {branch}*\n*{head_commit_msg}*\nby {pusher}\n\n🔍 Hermes analyzing changes..."
+        f"🚀 *GitHub Push to {branch}* in {project_slug}\n*{head_commit_msg}*\nby {pusher}\n\n🔍 Hermes analyzing changes..."
     )
 
-    prompt = f"""A new Push has been made to the branch `{branch}` in this repository.
+    prompt = f"""A new Push has been made to the branch `{branch}` in this repository ({project_slug}).
 
 Pusher: {pusher}
 Commit Message: {head_commit_msg}
 Diff URL: {head_commit_url}
 
 YOUR TASKS (in order):
-1. Use the terminal tool with git to investigate the recent changes if necessary:
-   `git fetch`
-   `git log -1`
-   `git diff HEAD~1 HEAD`
-
-2. Review the pushed code:
-   - Identify any obvious linting or build errors.
-   - You can try running `npx tsc --noEmit` or `npm run check` if it's a JS/TS project to see if the push broke anything.
-   - Analyze the diff for potential bugs.
-
-3. Send a brief summary of the changes and build/check status to Telegram via the messaging tool or just a simple summary if everything looks fine.
+1. Use the terminal tool with git to investigate the recent changes if necessary.
+2. Review the pushed code for linting, build errors, or potential bugs.
+3. Send a brief summary of the changes and build/check status to Telegram via the messaging tool or just a simple summary.
 """
 
     log_file = LOG_DIR / f"push_{branch.replace('/', '_')}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
     main_log = LOG_DIR / "monitoring.jsonl"
     
-    proc = subprocess.Popen(
-        [HERMES_CMD, "chat", "-q", prompt, "--toolsets", "terminal,file,web"],
-        stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-        stdin=subprocess.PIPE, text=True,
-        env=os.environ.copy(), bufsize=1, cwd=str(WORKING_DIR),
-    )
     try:
-        proc.stdin.write("s\n" * 10)
-        proc.stdin.flush()
-    except Exception:
-        pass
-
-    with open(log_file, "w", buffering=1) as f_private, open(main_log, "a", buffering=1) as f_main:
-        f_main.write(f"\n🚀 [Hermes Push Agent] Analyzing branch: {branch} @ {datetime.now().isoformat()}\n")
-        f_main.write(f"Commit: {head_commit_msg}\n{'─' * 40}\n")
+        # Diagnostic: Check API Keys
+        active_key = os.getenv("OPENROUTER_API_KEY") or os.getenv("NOUS_API_KEY")
         
-        for line in proc.stdout:
-            if line:
-                f_private.write(line); f_private.flush()
-                f_main.write(line); f_main.flush()
-                
-    proc.wait()
+        # Determine base_url and default model
+        is_nous = active_key and active_key.startswith("sk-2yd")
+        target_base_url = NOUS_API_BASE_URL if is_nous else OPENROUTER_BASE_URL
+        fallback_model   = "Hermes-4-405B" if is_nous else "anthropic/claude-3-5-sonnet"
+        target_model     = get_global_config("MODEL") or fallback_model
+
+        # Initialize Agent
+        agent = AIAgent(
+            model=target_model,
+            api_key=active_key,
+            base_url=target_base_url,
+            quiet_mode=True, # No spinners for background agents
+            enabled_toolsets=["terminal", "file", "web"],
+        )
+        
+        # Execute natively
+        response = agent.chat(prompt)
+        
+        # Log results
+        with open(log_file, "w") as f, open(main_log, "a") as f_main:
+            entry = f"\n🚀 [Push Agent] {project_slug} | Branch: {branch} | {datetime.now().isoformat()}\n"
+            f.write(entry); f.write(str(response))
+            f_main.write(entry); f_main.write(f"Result: {str(response)[:200]}...\n")
+
+    except Exception as e:
+        logging.error(f"Push agent failed: {e}")
+        send_telegram_message(f"❌ Hermes analysis failed for {branch}: {e}")
 
     send_telegram_message(f"✅ Push to {branch} analyzed.")
     logging.info(f"✅ Hermes done for Push to {branch}")
-    with open(main_log, "a") as f_main:
-        f_main.write(f"\n✅ Hermes analysis finished for {branch}.\n")
 
 if __name__ == "__main__":
     import sys
