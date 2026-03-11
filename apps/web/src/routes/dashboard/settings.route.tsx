@@ -1,4 +1,3 @@
-import { Separator } from "@hermes-on-call/ui/components/separator";
 import { createFileRoute, Link, Outlet } from "@tanstack/react-router";
 import { Github, Settings2, Terminal } from "lucide-react";
 
