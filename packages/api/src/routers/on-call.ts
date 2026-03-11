@@ -32,7 +32,7 @@ export const onCallRouter = {
 				throw new Error("Failed to get logs");
 			}
 			return await response.json();
-		} catch (error) {
+		} catch (_error) {
 			return {
 				logs: [],
 				error: "Agent is not running or failed to fetch logs.",

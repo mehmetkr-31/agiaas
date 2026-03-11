@@ -24,7 +24,7 @@ function LogsSettings() {
 		if (scrollRef.current) {
 			scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
 		}
-	}, [logsData]);
+	}, []);
 
 	const colorClass = (log: string) => {
 		const l = log.toLowerCase();
