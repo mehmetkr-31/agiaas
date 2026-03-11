@@ -1,4 +1,4 @@
-# hermes-on-call
+# agiaas
 
 An autonomous incident management and on-call agent system built with [Better-T-Stack](https://github.com/AmanVarshney01/create-better-t-stack).
 
@@ -36,7 +36,7 @@ pnpm run dev
 ## Project Structure
 
 ```
-hermes-on-call/
+agiaas/
 ├── apps/
 │   └── web/            # Dashboard application
 ├── packages/

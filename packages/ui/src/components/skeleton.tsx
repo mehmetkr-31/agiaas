@@ -1,4 +1,4 @@
-import { cn } from "@hermes-on-call/ui/lib/utils";
+import { cn } from "@agiaas/ui/lib/utils";
 
 function Skeleton({ className, ...props }: React.ComponentProps<"div">) {
 	return (

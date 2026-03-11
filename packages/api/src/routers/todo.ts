@@ -1,5 +1,5 @@
-import { db } from "@hermes-on-call/db";
-import { todo } from "@hermes-on-call/db/schema/todo";
+import { db } from "@agiaas/db";
+import { todo } from "@agiaas/db/schema/todo";
 import { eq } from "drizzle-orm";
 import z from "zod";
 

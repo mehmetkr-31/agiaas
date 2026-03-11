@@ -4,7 +4,7 @@ import {
 	CardDescription,
 	CardHeader,
 	CardTitle,
-} from "@hermes-on-call/ui/components/card";
+} from "@agiaas/ui/components/card";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { BookOpen, Bot, Github, Webhook, Zap } from "lucide-react";

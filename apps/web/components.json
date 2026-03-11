@@ -15,8 +15,8 @@
 	"menuAccent": "subtle",
 	"aliases": {
 		"components": "@/components",
-		"utils": "@hermes-on-call/ui/lib/utils",
-		"ui": "@hermes-on-call/ui/components",
+		"utils": "@agiaas/ui/lib/utils",
+		"ui": "@agiaas/ui/components",
 		"lib": "@/lib",
 		"hooks": "@/hooks"
 	},

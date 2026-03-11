@@ -4,7 +4,7 @@ import {
 	CardDescription,
 	CardHeader,
 	CardTitle,
-} from "@hermes-on-call/ui/components/card";
+} from "@agiaas/ui/components/card";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
@@ -54,7 +54,7 @@ function DashboardOverview() {
 				<div>
 					<h1 className="font-bold text-3xl tracking-tight">Overview</h1>
 					<p className="text-muted-foreground">
-						Welcome to your APIaaS command center.
+						Welcome to your AGIaaS command center.
 					</p>
 				</div>
 				<Link

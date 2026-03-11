@@ -1,4 +1,4 @@
-import { db, schema } from "@hermes-on-call/db";
+import { db, schema } from "@agiaas/db";
 
 const { hermesProject, globalConfig } = schema;
 

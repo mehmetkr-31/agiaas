@@ -12,11 +12,11 @@
 	},
 	"iconLibrary": "lucide",
 	"aliases": {
-		"components": "@hermes-on-call/ui/components",
-		"utils": "@hermes-on-call/ui/lib/utils",
-		"hooks": "@hermes-on-call/ui/hooks",
-		"lib": "@hermes-on-call/ui/lib",
-		"ui": "@hermes-on-call/ui/components"
+		"components": "@agiaas/ui/components",
+		"utils": "@agiaas/ui/lib/utils",
+		"hooks": "@agiaas/ui/hooks",
+		"lib": "@agiaas/ui/lib",
+		"ui": "@agiaas/ui/components"
 	},
 	"menuColor": "default",
 	"menuAccent": "subtle",

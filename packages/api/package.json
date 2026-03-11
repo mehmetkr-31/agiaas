@@ -1,5 +1,5 @@
 {
-	"name": "@hermes-on-call/api",
+	"name": "@agiaas/api",
 	"type": "module",
 	"exports": {
 		".": {
@@ -11,9 +11,9 @@
 	},
 	"scripts": {},
 	"dependencies": {
-		"@hermes-on-call/auth": "workspace:*",
-		"@hermes-on-call/db": "workspace:*",
-		"@hermes-on-call/env": "workspace:*",
+		"@agiaas/auth": "workspace:*",
+		"@agiaas/db": "workspace:*",
+		"@agiaas/env": "workspace:*",
 		"@orpc/client": "catalog:",
 		"@orpc/openapi": "catalog:",
 		"@orpc/server": "catalog:",
@@ -23,7 +23,7 @@
 		"zod": "catalog:"
 	},
 	"devDependencies": {
-		"@hermes-on-call/config": "workspace:*",
+		"@agiaas/config": "workspace:*",
 		"typescript": "^5"
 	}
 }

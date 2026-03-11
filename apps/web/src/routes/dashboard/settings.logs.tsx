@@ -1,7 +1,7 @@
-import { Badge } from "@hermes-on-call/ui/components/badge";
-import { Card, CardContent } from "@hermes-on-call/ui/components/card";
-import { Separator } from "@hermes-on-call/ui/components/separator";
-import { Skeleton } from "@hermes-on-call/ui/components/skeleton";
+import { Badge } from "@agiaas/ui/components/badge";
+import { Card, CardContent } from "@agiaas/ui/components/card";
+import { Separator } from "@agiaas/ui/components/separator";
+import { Skeleton } from "@agiaas/ui/components/skeleton";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { Activity, Server, Terminal } from "lucide-react";

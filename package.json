@@ -1,5 +1,5 @@
 {
-	"name": "hermes-on-call",
+	"name": "agiaas",
 	"private": true,
 	"workspaces": [
 		"apps/*",
@@ -11,21 +11,21 @@
 		"build": "turbo build",
 		"check-types": "turbo check-types",
 		"dev:web": "turbo -F web dev",
-		"db:push": "turbo -F @hermes-on-call/db db:push",
-		"db:studio": "turbo -F @hermes-on-call/db db:studio",
-		"db:generate": "turbo -F @hermes-on-call/db db:generate",
-		"db:migrate": "turbo -F @hermes-on-call/db db:migrate",
-		"db:local": "turbo -F @hermes-on-call/db db:local",
+		"db:push": "turbo -F @agiaas/db db:push",
+		"db:studio": "turbo -F @agiaas/db db:studio",
+		"db:generate": "turbo -F @agiaas/db db:generate",
+		"db:migrate": "turbo -F @agiaas/db db:migrate",
+		"db:local": "turbo -F @agiaas/db db:local",
 		"check": "biome check --write apps/ packages/api/src/ packages/ui/src/"
 	},
 	"dependencies": {
-		"@hermes-on-call/env": "workspace:*",
+		"@agiaas/env": "workspace:*",
 		"dotenv": "catalog:",
 		"zod": "catalog:"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "^2.2.0",
-		"@hermes-on-call/config": "workspace:*",
+		"@agiaas/config": "workspace:*",
 		"@types/node": "catalog:",
 		"turbo": "^2.8.12",
 		"typescript": "^5"

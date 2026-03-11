@@ -1,4 +1,4 @@
-import { auth } from "@hermes-on-call/auth";
+import { auth } from "@agiaas/auth";
 import { createMiddleware } from "@tanstack/react-start";
 
 export const authMiddleware = createMiddleware().server(

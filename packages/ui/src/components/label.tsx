@@ -1,4 +1,4 @@
-import { cn } from "@hermes-on-call/ui/lib/utils";
+import { cn } from "@agiaas/ui/lib/utils";
 import type * as React from "react";
 
 function Label({ className, ...props }: React.ComponentProps<"label">) {

@@ -1,13 +1,13 @@
-import { Button } from "@hermes-on-call/ui/components/button";
+import { Button } from "@agiaas/ui/components/button";
 import {
 	Card,
 	CardContent,
 	CardDescription,
 	CardHeader,
 	CardTitle,
-} from "@hermes-on-call/ui/components/card";
-import { Checkbox } from "@hermes-on-call/ui/components/checkbox";
-import { Input } from "@hermes-on-call/ui/components/input";
+} from "@agiaas/ui/components/card";
+import { Checkbox } from "@agiaas/ui/components/checkbox";
+import { Input } from "@agiaas/ui/components/input";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { Loader2, Trash2 } from "lucide-react";

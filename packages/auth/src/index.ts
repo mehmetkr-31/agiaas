@@ -1,6 +1,6 @@
-import { db } from "@hermes-on-call/db";
-import * as schema from "@hermes-on-call/db/schema/auth";
-import { env } from "@hermes-on-call/env/server";
+import { db } from "@agiaas/db";
+import * as schema from "@agiaas/db/schema/auth";
+import { env } from "@agiaas/env/server";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { tanstackStartCookies } from "better-auth/tanstack-start";

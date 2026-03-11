@@ -1,5 +1,5 @@
 {
-	"name": "@hermes/agent",
+	"name": "@agiaas/agent",
 	"version": "0.1.0",
 	"private": true,
 	"scripts": {

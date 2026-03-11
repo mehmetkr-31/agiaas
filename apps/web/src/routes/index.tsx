@@ -1,4 +1,4 @@
-import { Button } from "@hermes-on-call/ui/components/button";
+import { Button } from "@agiaas/ui/components/button";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { ArrowRight } from "lucide-react";
@@ -19,7 +19,7 @@ function HomeComponent() {
 			<header className="absolute top-0 z-50 flex w-full items-center justify-between p-6 md:px-12">
 				<div className="flex items-center gap-3">
 					<Logo className="h-8 w-auto" />
-					<span className="font-bold text-xl tracking-tight">APIaaS</span>
+					<span className="font-bold text-xl tracking-tight">AGIaaS</span>
 				</div>
 				<Link to="/dashboard">
 					<Button variant="ghost" className="font-medium">
@@ -33,7 +33,7 @@ function HomeComponent() {
 				{/* ASCII Background Layer */}
 				<div className="pointer-events-none absolute inset-0 z-0 opacity-40">
 					<ASCIIText
-						text="APIaaS"
+						text="AGIaaS"
 						asciiFontSize={8}
 						textFontSize={150}
 						textColor="#ffffff"
