@@ -27,7 +27,7 @@ export const onCallRouter = {
 
 	getLogs: publicProcedure.handler(async () => {
 		try {
-			const response = await fetch("http://localhost:8000/api/logs");
+			const response = await fetch("http://localhost:8090/logs");
 			if (!response.ok) {
 				throw new Error("Failed to get logs");
 			}
