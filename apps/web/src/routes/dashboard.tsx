@@ -32,16 +32,6 @@ function RouteComponent() {
 			label: "GitHub & Secrets",
 			icon: <Github className="h-4 w-4" />,
 		},
-		{
-			to: "/dashboard/settings",
-			label: "GitHub & Secrets",
-			icon: <Github className="h-4 w-4" />,
-		},
-		{
-			to: "/dashboard/chat",
-			label: "Commander",
-			icon: <Zap className="h-4 w-4" />,
-		},
 	];
 
 	return (
