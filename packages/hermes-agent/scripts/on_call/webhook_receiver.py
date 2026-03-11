@@ -15,11 +15,9 @@ GitHub events handled:
 import os
 import hmac
 import hashlib
-import subprocess
 import logging
 import pathlib
 import sqlite3
-import json
 import sys
 from datetime import datetime
 from contextlib import asynccontextmanager
@@ -38,12 +36,11 @@ script_dir = pathlib.Path(__file__).parent.resolve()
 if str(script_dir) not in sys.path:
     sys.path.append(str(script_dir))
 
-app = FastAPI(title="Hermes Webhook Receiver", lifespan=lifespan)
 HERMES_CMD    = os.getenv("HERMES_CMD", "hermes")
 
 WORKING_DIR   = pathlib.Path(__file__).parent.parent.parent.resolve()
 DB_FILE       = WORKING_DIR.parent.parent / "local.db"
-LOG_DIR       = WORKING_DIR / "hermes_data" / "on_call_logs"
+LOG_DIR       = WORKING_DIR / "agent" / "on_call_logs"
 LOG_DIR.mkdir(parents=True, exist_ok=True)
 LOG_FILE_PATH = LOG_DIR / "monitoring.jsonl"
 
@@ -73,6 +70,8 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logging.warning(f"Failed to manage Telegram bot lifecycle: {e}")
         yield
+
+app = FastAPI(title="Hermes Webhook Receiver", lifespan=lifespan)
 
 
 # ── Signature verification ─────────────────────────────────────────────────────

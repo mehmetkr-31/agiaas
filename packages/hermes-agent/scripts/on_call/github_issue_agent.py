@@ -3,7 +3,7 @@
 GitHub Issue Agent — thin Hermes wrapper.
 Hermes handles everything: gh CLI, web search, code analysis, GitHub comment.
 """
-import os, subprocess, pathlib, logging, time
+import os, subprocess, pathlib, logging, time, re
 from datetime import datetime
 from dotenv import load_dotenv
 from run_agent import AIAgent
@@ -53,11 +53,12 @@ YOUR TASK:
    - Search the codebase (THIS TARGET PROJECT at {repo_path}) for related code using file tools.
    - Use web_search if needed.
 2. Formulate a detailed analysis.
-3. OUTPUT YOUR FINAL ANALYSIS between `[ANALYSIS_START]` and `[ANALYSIS_END]` tags.
+3. Wrap your final analysis with these exact tags: [ANALYSIS_START] and [ANALYSIS_END].
+   (Do NOT use these tags in your earlier reasoning or thoughts).
    I will present this analysis to the human for approval before posting it.
    DO NOT use the terminal tool to post the comment yourself.
 
-Structure the analysis as:
+Structure the final analysis block as:
 ## 🤖 Hermes Analysis
 ### Root Cause Hypothesis
 ### Recommended Fix
@@ -66,6 +67,15 @@ Structure the analysis as:
 
     log_file = LOG_DIR / f"issue_{issue_number}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
     main_log = LOG_DIR / "monitoring.jsonl"
+    
+    def log_step(msg: str):
+        timestamp = datetime.now().strftime('%H:%M:%S')
+        with open(main_log, "a") as f:
+            f.write(f"[{timestamp}] 🧩 ISSUE #{issue_number} | {msg}\n")
+        logging.info(f"Steplog: {msg}")
+
+    log_step(f"Cloned repo: {owner}/{repo}")
+    log_step("Starting Hermes analysis...")
     
     try:
         # Diagnostic: Check API Keys
@@ -91,45 +101,64 @@ Structure the analysis as:
         result = agent.run_conversation(prompt)
         output_text = result.get("final_response", "")
         
-        # Log to private and main monitoring
-        with open(log_file, "w") as f, open(main_log, "a") as f_main:
-            entry = f"\n📋 [Issue Agent] Issue #{issue_number} | {owner}/{repo} | {datetime.now().isoformat()}\n"
-            f.write(entry); f.write(output_text)
-            f_main.write(entry); f_main.write(f"Title: {title}\nAnalysis complete.\n")
+        # Log to private file
+        with open(log_file, "w") as f:
+            f.write(output_text)
 
     except Exception as e:
+        log_step(f"Hermes FAILED: {e}")
         logging.error(f"Issue agent failed: {e}")
         send_telegram_message(f"❌ Hermes analysis failed for Issue #{issue_number}: {e}")
         return
 
-    # Extract analysis block
+    # Log results
+    log_step("Analysis complete.")
+
+    # Extract analysis block using robust regex
     analysis = ""
-    if "[ANALYSIS_START]" in output_text and "[ANALYSIS_END]" in output_text:
-        analysis = output_text.split("[ANALYSIS_START]")[1].split("[ANALYSIS_END]")[0].strip()
+    # Look for tags, allowing for some padding (like box characters | or spaces)
+    blocks = re.findall(r'\[ANALYSIS_START\](.*?)\[ANALYSIS_END\]', output_text, re.DOTALL)
+    if blocks:
+        # Clean candidates from padding characters like '│' and strip
+        candidates = []
+        for b in blocks:
+            cleaned = b.replace('│', '').strip()
+            if cleaned: candidates.append(cleaned)
+        
+        if candidates:
+            # Pick the longest block to avoid matching reflected instructions
+            analysis = max(candidates, key=len)
     
     if not analysis:
-        # Fallback: take the last 2000 chars if tags were missed
-        analysis = output_text[-2000:]
-        logging.warning("Tags [ANALYSIS_START/END] not found. Using fallback.")
+        # Fallback: take the last 2000 chars if tags were missed, but clean it
+        analysis = output_text.replace('│', '').strip()[-2000:]
+        logging.warning("Tags [ANALYSIS_START/END] not found or empty. Using fallback.")
+    
+    log_step("Waiting for user approval...")
 
     # Request Approval
     approval_text = f"Hermes has finished analyzing Issue #{issue_number}.\n\n*Proposed Comment:*\n{analysis[:1000]}..."
     approved = request_approval(approval_text, f"issue_{issue_number}_{int(time.time())}")
 
     if approved:
+        log_step("Approved! Posting to GitHub...")
         logging.info("🚀 Approved! Posting comment to GitHub.")
         try:
             cmd = ["gh", "issue", "comment", str(issue_number), "--repo", f"{owner}/{repo}", "--body", analysis]
             subprocess.run(cmd, check=True, capture_output=True, text=True)
             send_telegram_message(f"✅ Comment posted to Issue #{issue_number}.")
+            log_step("Posted successfully.")
         except Exception as e:
             logging.error(f"Failed to post comment: {e}")
             send_telegram_message(f"❌ Failed to post comment to Issue #{issue_number}: {e}")
+            log_step(f"Post FAILED: {e}")
     else:
+        log_step("Rejected by user.")
         logging.info("🛑 Rejected by user. Skipping comment.")
         send_telegram_message(f"🛑 Analysis for Issue #{issue_number} was rejected. No comment posted.")
 
     logging.info(f"✅ Hermes done for issue #{issue_number}")
+    log_step("Mission complete.")
 
 
 if __name__ == "__main__":
