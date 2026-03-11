@@ -34,7 +34,7 @@ load_dotenv()
 WORKING_DIR  = pathlib.Path(__file__).parent.parent.parent.resolve()
 PROJECT_ROOT = WORKING_DIR.parent.parent
 DB_FILE      = PROJECT_ROOT / "local.db"
-LOG_FILE     = WORKING_DIR / "hermes_data" / "on_call_logs" / "monitoring.jsonl"
+LOG_FILE     = WORKING_DIR / "agent" / "on_call_logs" / "monitoring.jsonl"
 
 # Load root .env
 root_env = PROJECT_ROOT / ".env"

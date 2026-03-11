@@ -3,7 +3,7 @@
 GitHub Action Agent — thin Hermes wrapper.
 Hermes handles everything: reading logs, diagnosing, rollback via gh CLI.
 """
-import os, subprocess, pathlib, logging, time
+import os, subprocess, pathlib, logging, time, re
 from datetime import datetime
 from dotenv import load_dotenv
 from run_agent import AIAgent
@@ -52,13 +52,23 @@ Run ID: {run_id}
 YOUR TASK:
 1. Inspect the failure: Use `gh run view {run_id} --log-failed` to see logs.
 2. Diagnose the root cause by searching the codebase at {repo_path}.
-3. OUTPUT YOUR DIAGNOSIS between `[DIAGNOSIS_START]` and `[DIAGNOSIS_END]` tags.
+3. Wrap your diagnosis with these exact tags: [DIAGNOSIS_START] and [DIAGNOSIS_END].
+   (Do NOT use these tags in your earlier reasoning or thoughts).
    I will present this to the human for approval before rerunning.
    DO NOT use the terminal tool to rerun the jobs yourself.
 """
 
     log_file = LOG_DIR / f"action_{run_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
     main_log = LOG_DIR / "monitoring.jsonl"
+    
+    def log_step(msg: str):
+        timestamp = datetime.now().strftime('%H:%M:%S')
+        with open(main_log, "a") as f:
+            f.write(f"[{timestamp}] 🧩 ACTION #{run_id}  | {msg}\n")
+        logging.info(f"Steplog: {msg}")
+
+    log_step(f"Cloned repo: {owner}/{repo}")
+    log_step("Starting Hermes diagnosis...")
     
     try:
         # Diagnostic: Check API Keys
@@ -84,39 +94,54 @@ YOUR TASK:
         result = agent.run_conversation(prompt)
         output_text = result.get("final_response", "")
         
-        # Log to private and main monitoring
-        with open(log_file, "w") as f, open(main_log, "a") as f_main:
-            entry = f"\n⚙️ [Action Agent] Run #{run_id} | {owner}/{repo} | {datetime.now().isoformat()}\n"
-            f.write(entry); f.write(output_text)
-            f_main.write(entry); f_main.write(f"Workflow: {workflow_name}\nDiagnosis complete.\n")
+        # Log to private file
+        with open(log_file, "w") as f:
+            f.write(output_text)
 
     except Exception as e:
+        log_step(f"Hermes FAILED: {e}")
         logging.error(f"Action agent failed: {e}")
         send_telegram_message(f"❌ Hermes analysis failed for Action #{run_id}: {e}")
         return
 
-    # Extract diagnosis
+    # Log results
+    log_step("Diagnosis complete.")
+
+    # Extract diagnosis using robust regex
     diagnosis = ""
-    if "[DIAGNOSIS_START]" in output_text and "[DIAGNOSIS_END]" in output_text:
-        diagnosis = output_text.split("[DIAGNOSIS_START]")[1].split("[DIAGNOSIS_END]")[0].strip()
+    blocks = re.findall(r'\[DIAGNOSIS_START\](.*?)\[DIAGNOSIS_END\]', output_text, re.DOTALL)
+    if blocks:
+        candidates = []
+        for b in blocks:
+            cleaned = b.replace('│', '').strip()
+            if cleaned: candidates.append(cleaned)
+        if candidates:
+            diagnosis = max(candidates, key=len)
     
     if not diagnosis:
-        diagnosis = output_text[-1000:]
+        # Fallback: take the last 1000 chars if tags were missed, but clean it
+        diagnosis = output_text.replace('│', '').strip()[-1000:]
         logging.warning("Tags [DIAGNOSIS_START/END] not found for Action failure. Using fallback.")
+    
+    log_step("Waiting for user approval...")
 
     # Request Approval
     approval_text = f"Hermes diagnosed a failure in *- {workflow_name} -*\n\n*Diagnosis:*\n{diagnosis[:1000]}...\n\n*Should I rerun the failed jobs?*"
     approved = request_approval(approval_text, f"action_{run_id}_{int(time.time())}")
 
     if approved:
+        log_step("Approved! Rerunning jobs...")
         logging.info("🚀 Approved! Rerunning failed jobs.")
         result = do_rollback(run_id, owner, repo)
         send_telegram_message(f"🔄 {result}")
+        log_step(f"Result: {result}")
     else:
+        log_step("Rejected by user.")
         logging.info("🛑 Rejected by user. Skipping rerun.")
         send_telegram_message(f"🛑 Rerun for Action #{run_id} was rejected by user.")
 
     logging.info(f"✅ Hermes done for Action run #{run_id}")
+    log_step("Mission complete.")
 
 
 def do_rollback(run_id: int, owner: str = None, repo: str = None) -> str:

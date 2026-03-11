@@ -3,7 +3,7 @@
 GitHub PR Agent — thin Hermes wrapper.
 Hermes handles everything: reading diff, code review, posting gh pr review.
 """
-import os, subprocess, pathlib, logging, time
+import os, subprocess, pathlib, logging, time, re
 from datetime import datetime
 from dotenv import load_dotenv
 from run_agent import AIAgent
@@ -42,28 +42,41 @@ def handle_pr(pr_number: int, title: str = "", author: str = "", owner: str = No
         f"🔀 *GitHub PR #{pr_number}* at {owner}/{repo}\n*{title}*\nby {author}\n\n🔍 Hermes reviewing..."
     )
 
-    prompt = f"""A new Pull Request #{pr_number} has been opened in the repository {owner}/{repo}.
+    prompt = f"""Review the following GitHub Pull Request #{pr_number} in {owner}/{repo}:
 
 Title: {title}
 Author: {author}
 
 YOUR TASK:
-1. Review the PR:
-   - Use `gh pr view {pr_number}` and `gh pr diff {pr_number}` to inspect changes.
-   - Look for bugs, security issues, or missing tests.
-   - Inspect the local codebase at {repo_path} using file tools.
-2. Formulate your review.
-3. OUTPUT YOUR PROPOSED REVIEW in this format:
-   [VERDICT]: <approve|comment|request-changes>
-   [ANALYSIS_START]
-   <markdown review body>
-   [ANALYSIS_END]
+1. Research the changes:
+   - Check the PR diff using terminal commands if needed.
+   - Search the codebase at {repo_path} to understand the impact.
+2. Formulate a detailed review.
+3. Wrap your final review with these exact tags: [ANALYSIS_START] and [ANALYSIS_END].
+   (Do NOT use these tags in your earlier reasoning or thoughts).
+4. Provide a [VERDICT]: either "approve" or "request-changes" or "comment".
 
-I will present this to the human for approval. DO NOT use the terminal tool to post the review yourself.
+I will present this to the human for approval.
+DO NOT use the terminal tool to post the review yourself.
+
+Structure the review block as:
+## 🤖 Hermes Review
+### Summary
+### Findings & Suggestions
+### Verdict
 """
 
     log_file = LOG_DIR / f"pr_{pr_number}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
     main_log = LOG_DIR / "monitoring.jsonl"
+    
+    def log_step(msg: str):
+        timestamp = datetime.now().strftime('%H:%M:%S')
+        with open(main_log, "a") as f:
+            f.write(f"[{timestamp}] 🧩 PR #{pr_number}    | {msg}\n")
+        logging.info(f"Steplog: {msg}")
+
+    log_step(f"Cloned repo: {owner}/{repo}")
+    log_step("Starting Hermes review...")
     
     try:
         # Diagnostic: Check API Keys
@@ -89,52 +102,74 @@ I will present this to the human for approval. DO NOT use the terminal tool to p
         result = agent.run_conversation(prompt)
         output_text = result.get("final_response", "")
         
-        # Log to private and main monitoring
-        with open(log_file, "w") as f, open(main_log, "a") as f_main:
-            entry = f"\n🔀 [PR Agent] PR #{pr_number} | {owner}/{repo} | {datetime.now().isoformat()}\n"
-            f.write(entry); f.write(output_text)
-            f_main.write(entry); f_main.write(f"Title: {title}\nReview complete.\n")
+        # Log to private file
+        with open(log_file, "w") as f:
+            f.write(output_text)
 
     except Exception as e:
+        log_step(f"Hermes FAILED: {e}")
         logging.error(f"PR agent failed: {e}")
         send_telegram_message(f"❌ Hermes analysis failed for PR #{pr_number}: {e}")
         return
 
-    # Extract analysis and verdict
-    analysis = ""
-    verdict = "comment"
+    # Log results
+    log_step("Analysis complete.")
 
-    if "[ANALYSIS_START]" in output_text and "[ANALYSIS_END]" in output_text:
-        analysis = output_text.split("[ANALYSIS_START]")[1].split("[ANALYSIS_END]")[0].strip()
+    # Extract analysis block using robust regex
+    analysis = ""
+    blocks = re.findall(r'\[ANALYSIS_START\](.*?)\[ANALYSIS_END\]', output_text, re.DOTALL)
+    if blocks:
+        candidates = []
+        for b in blocks:
+            cleaned = b.replace('│', '').strip()
+            if cleaned: candidates.append(cleaned)
+        if candidates:
+            analysis = max(candidates, key=len)
     
+    # Extract verdict - use rpartition to get the latest one provided by the agent
+    verdict = "comment"
     if "[VERDICT]:" in output_text:
-        v_line = output_text.split("[VERDICT]:")[1].split("\n")[0].strip().lower()
+        v_line = output_text.rpartition("[VERDICT]:")[2].split("\n")[0].strip().lower()
         if "approve" in v_line: verdict = "approve"
         elif "request-changes" in v_line: verdict = "request-changes"
     
     if not analysis:
-        analysis = output_text[-2000:]
+        # Fallback: take the last 2000 chars if tags were missed, but clean it
+        analysis = output_text.replace('│', '').strip()[-2000:]
         logging.warning("Tags [ANALYSIS_START/END] not found for PR. Using fallback.")
+    
+    log_step(f"Verdict: {verdict}. Waiting for user approval...")
 
     # Request Approval
     approval_text = f"Hermes review for PR #{pr_number} is ready.\n\n*Verdict:* `{verdict.upper()}`\n\n*Review Preview:*\n{analysis[:1000]}..."
     approved = request_approval(approval_text, f"pr_{pr_number}_{int(time.time())}")
 
     if approved:
+        log_step("Approved! Posting to GitHub...")
         logging.info("🚀 Approved! Posting PR review to GitHub.")
         try:
             flag = "--approve" if verdict == "approve" else "--request-changes" if verdict == "request-changes" else "--comment"
-            cmd = ["gh", "pr", "review", str(pr_number), "--repo", f"{owner}/{repo}", flag, "--body", analysis]
-            subprocess.run(cmd, check=True, capture_output=True, text=True)
-            send_telegram_message(f"✅ PR review posted to #{pr_number} ({verdict}).")
+            process = subprocess.run(
+                ["gh", "pr", "review", str(pr_number), "--repo", f"{owner}/{repo}", flag, "--body", analysis],
+                capture_output=True, text=True
+            )
+            if process.returncode == 0:
+                send_telegram_message(f"✅ PR review posted to #{pr_number} ({verdict}).")
+                log_step("Posted successfully.")
+            else:
+                log_step(f"Post FAILED: {process.stderr[:100]}")
+                send_telegram_message(f"❌ Failed to post PR review: {process.stderr[:200]}")
         except Exception as e:
             logging.error(f"Failed to post PR review: {e}")
             send_telegram_message(f"❌ Failed to post PR review to #{pr_number}: {e}")
+            log_step(f"Post FAIL: {e}")
     else:
+        log_step("Rejected by user.")
         logging.info("🛑 Rejected by user. Skipping evaluation.")
         send_telegram_message(f"🛑 Review for PR #{pr_number} was rejected by user.")
 
     logging.info(f"✅ Hermes done for PR #{pr_number}")
+    log_step("Mission complete.")
 
 
 if __name__ == "__main__":
