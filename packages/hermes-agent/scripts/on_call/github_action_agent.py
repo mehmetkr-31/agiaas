@@ -19,8 +19,8 @@ from reporter import (
     log_step as central_log_step,
     NOUS_API_BASE_URL,
     OPENROUTER_BASE_URL,
-    CORE_HERMES_RULES,
 )
+from prompts import CORE_SAFETY_RULES
 
 load_dotenv()
 AGENT_ROOT = pathlib.Path(__file__).parent.parent.parent.resolve()
@@ -62,14 +62,11 @@ def handle_failed_action(
 Workflow: {workflow_name}
 Branch: {branch}
 Run ID: {run_id}
+Local Path: {repo_path}
 
 YOUR TASK:
 1. Inspect the failure: Use `gh run view {run_id} --log-failed` to see logs.
-2. Diagnose the root cause by searching the codebase:
-   - ⚡ PERFORMANCE RULE: The repository should be available at `{repo_path}`.
-   - Prefer fast local terminal commands like `ls -la {repo_path}`, `cat`, `grep`, or file tools.
-   - Only use slow `gh api` or network calls if the local path is missing or incomplete.
-   - Do NOT use slow `gh api` or network calls to read files or directory contents unless absolutely necessary.
+2. Diagnose the root cause by searching the codebase.
 3. Wrap your diagnosis with these exact tags: [DIAGNOSIS_START] and [DIAGNOSIS_END].
    (Do NOT use these tags in your earlier reasoning or thoughts).
    I will present this to the human for approval before rerunning.
@@ -110,14 +107,10 @@ YOUR TASK:
             api_key=active_key or "",
             base_url=target_base_url,
             quiet_mode=True,
-            enabled_toolsets=["terminal", "file", "web"],
+            enabled_toolsets=["terminal", "file", "web", "vision"],
+            reasoning_config={"enabled": True, "effort": "high"},
             ephemeral_system_prompt=(
-                "You are an autonomous on-call bot. Your goal is to diagnose failed CI/CD Action runs and propose fixes.\n"
-                "STRICT RULES:\n"
-                "- NO DIRECT COMMITS TO MAIN/MASTER: You are ABSOLUTELY FORBIDDEN from pushing commits directly to main or master branches.\n"
-                "- MANDATORY PULL REQUESTS: All codebase changes MUST be done by creating a new branch, committing your changes, pushing the branch, and then creating a Pull Request (gh pr create).\n"
-                "- PULL REQUEST MERGING: If the user explicitly asks you to merge a Pull Request, you may run `gh pr merge <pr_number> --merge --admin` or `gh pr merge <pr_number> --merge`. ONLY do this if they specifically request a merge.\n"
-                f"{CORE_HERMES_RULES}"
+                f"You are an autonomous GitHub Action Failure agent.\n{CORE_SAFETY_RULES}"
             ),
         )
 

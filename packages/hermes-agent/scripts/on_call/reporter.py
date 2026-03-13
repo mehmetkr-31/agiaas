@@ -38,57 +38,43 @@ from telegram.ext import (
 )
 from run_agent import AIAgent
 from encryption_utils import decrypt
+from ui_utils import format_telegram_card, calculate_cost
+from agent.model_metadata import fetch_model_metadata
+from prompts import get_commander_system_prompt, CORE_SAFETY_RULES
+
+# Import local tools to override default library tools
+try:
+    import sys
+    import os
+
+    # Add the packages/hermes-agent directory to sys.path so we can import tools.*
+    agent_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
+    if agent_root not in sys.path:
+        sys.path.insert(0, agent_root)
+    import tools.send_message_tool
+
+    logging.info("🚀 Local send_message_tool (Modern UI) loaded successfully.")
+except Exception as e:
+    logging.warning(f"⚠️ Failed to load local tools: {e}")
 
 load_dotenv()
 
 # Static Configuration Defaults (User requested static models)
 DEFAULT_MODEL = "anthropic/claude-3-5-sonnet"
-DEFAULT_NOUS_MODEL = "Hermes-4-405B"  # This is the primary model available on Nous direct API
+DEFAULT_NOUS_MODEL = (
+    "Hermes-4-405B"  # This is the primary model available on Nous direct API
+)
 
-# Shared Rules to prevent Hallucination
-CORE_HERMES_RULES = """
-## CRITICAL COMMUNICATION RULES (MUST FOLLOW)
-- NEVER expose your inner monologue, reasoning, or thought process.
-- CHECK BEFORE YOU SPEAK: If a user asks about the status, issues, or PRs of a project, ALWAYS use the `terminal` tool to fetch the latest data from GitHub BEFORE you formulate a response. NEVER EVER try to guess, recall issues from your internal training data, or invent plausible-sounding issues. YOUR INTERNAL KNOWLEDGE OF THE PROJECT'S ISSUES IS ZERO. IF NO DATA IS RETRIEVED BY THE TOOL, YOU MUST SAY "I couldn't retrieve the data" AND EXPLAIN WHY, DO NOT HALLUCINATE.
-- NO HALLUCINATION: I repeat, do NOT invent titles like "Science Icon doesn't render" or "BoxShadow layout shift". If you provide data not found in the tool output, you are failing your mission.
-- HIGH FIDELITY: When reporting data from tools (issues, PRs, logs), stay as close as possible to the actual text provided by the tool. Do NOT rephrase in a way that adds info or changes technical meaning. If an issue says "bug in contact.html", do NOT say "bug in the contact form" unless you've verified it's a form.
-- NO PRE-ACKNOWLEDGMENTS: Do NOT say "I will now fetch the data" or "Let me check that for you". Just execute the tool and provide the final answer once you have the results.
-- FINAL ANSWERS ONLY: Your final response to the user must contain the actual information requested. Never end a conversation by saying you *will* do something; only end it by showing you *have done* it or by providing the data.
+# Constants for default models/urls
+OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
+NOUS_API_BASE_URL = "https://inference-api.nousresearch.com/v1"
 
-## EXAMPLE INTERACTION (MANDATORY PATTERN)
-User: [project-name] reposundaki issueları getir
-Assistant: <tool_call>
-{{"name": "terminal", "arguments": {{"command": "gh issue list --repo [owner]/[repo]"}}}}
-</tool_call>
-(After tool output)
-Assistant: [owner]/[repo] reposunda 1 tane açık issue buldum: #1 - example fix.
-"""
 # Pathing setup
 PROJECT_ROOT = pathlib.Path("/Users/alikar/dev/hermes-apiaas")
 WORKING_DIR = PROJECT_ROOT / "packages" / "hermes-agent"
 DB_FILE = PROJECT_ROOT / "local.db"
 LOG_FILE_PATH = WORKING_DIR / "agent" / "on_call_logs" / "monitoring.jsonl"
 DATA_DIR = PROJECT_ROOT / ".tmp"
-
-# Log the discovery for debugging
-logging.info(f"📍 Database Discovery: Using {DB_FILE} (Project Root: {PROJECT_ROOT})")
-
-# Load root .env
-root_env = PROJECT_ROOT / ".env"
-if root_env.exists():
-    load_dotenv(dotenv_path=root_env)
-    # AIAgent looks for OPENROUTER_API_KEY. If NOUS_API_KEY is present, map it as priority.
-    if os.getenv("NOUS_API_KEY") and not os.getenv("OPENROUTER_API_KEY"):
-        os.environ["OPENROUTER_API_KEY"] = os.environ["NOUS_API_KEY"]
-        logging.info(
-            "🔑 Mapped NOUS_API_KEY to OPENROUTER_API_KEY for agent initialization."
-        )
-else:
-    load_dotenv()  # Fallback to local
-
-# Constants for default models/urls
-OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
-NOUS_API_BASE_URL = "https://inference-api.nousresearch.com/v1"
 
 
 def get_standardized_model(model_name: str, api_key: str = "") -> str:
@@ -343,11 +329,19 @@ async def _request_approval_async(
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
 
+    # Use UI Card for approval request
+    formatted_text = format_telegram_card(
+        title="Permission Required",
+        content=text,
+        repo_name=repo_full_name,
+        level="incident",
+    )
+
     try:
         msg = await bot.send_message(
             chat_id=chat_id,
-            text=f"🛡 *HERMES NEEDS YOUR PERMISSION*\n\n{text}",
-            parse_mode="Markdown",
+            text=formatted_text,
+            parse_mode="MarkdownV2",
             reply_markup=reply_markup,
         )
         set_approval_status(
@@ -404,15 +398,24 @@ def request_approval(
 # ── Message Utilities ──────────────────────────────────────────────────────
 
 
-def send_telegram_message(text: str, repo_full_name: str) -> bool:
-    """Simplified one-shot SDK message sender."""
+def send_telegram_message(text: str, repo_full_name: str, level: str = "info") -> bool:
+    """Simplified one-shot SDK message sender with UI Card support."""
     bot_token, chat_id = get_telegram_context(repo_full_name)
     if not bot_token or not chat_id:
         return False
 
     async def _send():
         bot = telegram.Bot(token=bot_token)
-        await bot.send_message(chat_id=chat_id, text=text, parse_mode="Markdown")
+        # Convert to UI Card
+        formatted_text = format_telegram_card(
+            title="System Notification",
+            content=text,
+            repo_name=repo_full_name,
+            level=level,
+        )
+        await bot.send_message(
+            chat_id=chat_id, text=formatted_text, parse_mode="MarkdownV2"
+        )
 
     try:
         asyncio.run(_send())
@@ -601,39 +604,7 @@ async def chat_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"Loaded {len(projects)} projects for Telegram context: {projects}"
         )
 
-        system_prompt = f"""# HERMES COMMANDER: GITHUB-NATIVE OPERATIONAL DIRECTIVE
-
-You are Hermes Commander, a high-level autonomous agent responsible for maintaining and fixing remote software systems via GitHub.
-
-- FINAL ANSWERS ONLY: Your final response to the user must contain the actual information requested. Never end a conversation by saying you *will* do something; only end it by showing you *have done* it or by providing the data.
-
-{CORE_HERMES_RULES}
-
-## MISSION CONTEXT
-You manage the following registered repositories: {project_context}
-
-## OPERATIONAL DIRECTIVE: "GITHUB-NATIVE RESEARCH"
-1. **ISOLATION**: You are FORBIDDEN from exploring the local filesystem (e.g., `packages/`, `apps/`, `node_modules/`). The local codebase is your OWN dashboard; do NOT confuse it with the projects you manage.
-2. **RESEARCH**: Use the `terminal` tool to investigate target repositories strictly via `gh` CLI or GitHub API.
-    - **IMPORTANT**: ALWAYS specify the repository using `--repo [owner]/[repo]` for ALL `gh` commands (e.g., `gh issue list --repo owner/repo`). If you only have a short repo name, use `gh search repos <name>` to find the correct `owner/repo` format first. If you don't, you will see the wrong data.
-    - **VERIFY TOOL OUTPUT**: If you run a command like `gh issue list`, you MUST read the result carefully.
-    - **NO HALLUCINATION**: If the command returns no issues, or returns an error, state EXACTLY that. Do NOT invent issues based on training data. If you have no concrete, tool-provided issue list, you MUST tell the user you cannot find any issues or that there was an error retrieving them.
-   - Use `gh repo view [owner]/[repo] --web` to see repo info.
-   - Use `gh api repos/[owner]/[repo]/contents/[path]` to read files.
-   - Use `gh issue list --repo [owner]/[repo]` and `gh pr list --repo [owner]/[repo]` to see what's happening.
-3. **CLONING**: ONLY if you are tasked with a code fix and need to modify files, clone the repository to a temporary path under `{DATA_DIR}`:
-   - `gh repo clone [owner]/[repo] {DATA_DIR}/[owner]/[repo]`
-
-## ACTION WORKFLOWS
-- **Incident reporting**: Research via `gh api`, then ask: "I've analyzed the bug in [repo]. Should I open an issue?"
-- **Remediation**: If approved, clone to `{DATA_DIR}`, fix the code, run tests, then ask: "Fix implemented in [repo]. Should I create a Pull Request?"
-
-## SAFETY & APPROVAL PROTOCOL (STRICT)
-- **ZERO MUTATION WITHOUT CONSENT**: You are FORBIDDEN from running `gh issue create`, `gh pr create`, `git push`, or any command that commit/pushes code without an explicit "yes", "proceed", or "approve" from the user in the *current* conversation turn.
-- **CLEAR PROPOSALS**: State the Target Repository and a summary of the change before asking for confirmation.
-
-You are decisive, proactive, and strictly adhere to GitHub-native investigation tools.
-"""
+        system_prompt = get_commander_system_prompt(project_context, str(DATA_DIR))
 
         # Get history
         chat_id_str = str(update.effective_chat.id)
@@ -659,6 +630,7 @@ You are decisive, proactive, and strictly adhere to GitHub-native investigation 
             session_id=f"tg-{chat_id_str}",
             ephemeral_system_prompt=system_prompt,
             platform="telegram",
+            reasoning_config={"enabled": True, "effort": "high"},
             tool_progress_callback=lambda name, preview, args=None: log_step(
                 f"Tool: {name} | {preview}", prefix="TG-TOOL"
             ),
@@ -673,18 +645,36 @@ You are decisive, proactive, and strictly adhere to GitHub-native investigation 
         # Update session memory
         sessions.update_history(chat_id_str, new_history)
 
-        log_step(f"Outbound TG: {str(response)[:100]}...", prefix="TG-CHAT")
+        # Calculate cost and tokens
+        prompt_tokens = getattr(agent, "session_prompt_tokens", 0)
+        completion_tokens = getattr(agent, "session_completion_tokens", 0)
+        total_tokens = getattr(agent, "session_total_tokens", 0)
+
+        metadata = fetch_model_metadata()
+        cost = calculate_cost(prompt_tokens, completion_tokens, agent.model, metadata)
+
+        log_step(
+            f"Outbound TG: {str(response)[:100]}... (Cost: ${cost:.4f})",
+            prefix="TG-CHAT",
+        )
 
         if not response or not str(response).strip():
-            response = "Hermes did not provide a message response."
+            response_text = "Hermes did not provide a message response."
         else:
-            response = str(response)
+            response_text = str(response)
 
-        # Telegram message limit is ~4096. Split if needed.
-        if len(response) > 4000:
-            response = response[:3900] + "\n\n... (trimmed)"
+        # Format as UI Card
+        repo_info = ", ".join(projects) if projects else None
+        formatted_msg = format_telegram_card(
+            title="Hermes Commander",
+            content=response_text,
+            repo_name=repo_info,
+            cost=cost,
+            tokens=total_tokens,
+            level="agent",
+        )
 
-        await update.message.reply_text(response)
+        await update.message.reply_text(formatted_msg, parse_mode="MarkdownV2")
 
     except Exception as e:
         logging.error(f"Chat error: {e}")
@@ -711,10 +701,20 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if query.message:
                 # Use getattr because it could be InaccessibleMessage which doesn't have .text
                 msg_text = getattr(query.message, "text", "") or ""
+                # Use MarkdownV2 for consistency and escape the replacement text
                 new_text = str(msg_text).replace(
-                    "🛡 *HERMES NEEDS YOUR PERMISSION*", "✅ *ACTION APPROVED*"
+                    format_telegram_card(
+                        title="Permission Required", content="", level="incident"
+                    )
+                    .split("────────────────────")[0]
+                    .strip(),
+                    format_telegram_card(
+                        title="Action Approved", content="", level="success"
+                    )
+                    .split("────────────────────")[0]
+                    .strip(),
                 )
-                await query.edit_message_text(text=new_text, parse_mode="Markdown")
+                await query.edit_message_text(text=new_text, parse_mode="MarkdownV2")
 
         elif data.startswith("rejc_"):
             aid = data[len("rejc_") :]
@@ -723,9 +723,18 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if query.message:
                 msg_text = getattr(query.message, "text", "") or ""
                 new_text = str(msg_text).replace(
-                    "🛡 *HERMES NEEDS YOUR PERMISSION*", "❌ *ACTION REJECTED*"
+                    format_telegram_card(
+                        title="Permission Required", content="", level="incident"
+                    )
+                    .split("────────────────────")[0]
+                    .strip(),
+                    format_telegram_card(
+                        title="Action Rejected", content="", level="error"
+                    )
+                    .split("────────────────────")[0]
+                    .strip(),
                 )
-                await query.edit_message_text(text=new_text, parse_mode="Markdown")
+                await query.edit_message_text(text=new_text, parse_mode="MarkdownV2")
 
     except Exception as e:
         logging.error(f"Error in callback_handler: {e}", exc_info=True)
