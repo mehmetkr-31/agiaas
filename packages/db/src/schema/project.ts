@@ -10,5 +10,7 @@ export const hermesProject = sqliteTable("hermes_project", {
 	botId: text("bot_id"), // Reference to hermes_bots
 	isActive: integer("is_active", { mode: "boolean" }).default(true).notNull(),
 	llmModel: text("llm_model").default("gpt-4o-mini").notNull(),
-	createdAt: integer("created_at", { mode: "timestamp" }).default(sql`(strftime('%s', 'now'))`).notNull(),
+	createdAt: integer("created_at", { mode: "timestamp" })
+		.default(sql`(strftime('%s', 'now'))`)
+		.notNull(),
 });

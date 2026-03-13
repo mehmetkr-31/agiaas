@@ -1,5 +1,5 @@
-import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
 import { sql } from "drizzle-orm";
+import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
 
 export const agentLogs = sqliteTable("agent_logs", {
 	id: text("id").primaryKey(),
@@ -10,5 +10,7 @@ export const agentLogs = sqliteTable("agent_logs", {
 	response: text("response"),
 	tokensUsed: integer("tokens_used").default(0),
 	durationMs: integer("duration_ms").default(0),
-	createdAt: integer("created_at", { mode: "timestamp" }).default(sql`(strftime('%s', 'now'))`).notNull(),
+	createdAt: integer("created_at", { mode: "timestamp" })
+		.default(sql`(strftime('%s', 'now'))`)
+		.notNull(),
 });

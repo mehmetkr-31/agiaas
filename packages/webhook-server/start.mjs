@@ -13,11 +13,11 @@
  * the dashboard shows the full webhook URL to copy into GitHub.
  */
 
-import { spawn, execSync } from "node:child_process";
-import { writeFileSync, readFileSync } from "node:fs";
-import { resolve, dirname } from "node:path";
-import { fileURLToPath } from "node:url";
+import { execSync, spawn } from "node:child_process";
 import crypto from "node:crypto";
+import { readFileSync, writeFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import "dotenv/config";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -54,7 +54,10 @@ function decrypt(hash) {
 	const decipher = crypto.createDecipheriv("aes-256-gcm", key, iv);
 	decipher.setAuthTag(tag);
 
-	const decrypted = Buffer.concat([decipher.update(encrypted), decipher.final()]);
+	const decrypted = Buffer.concat([
+		decipher.update(encrypted),
+		decipher.final(),
+	]);
 	return decrypted.toString("utf8");
 }
 const RECEIVER_SCRIPT = resolve(
@@ -69,7 +72,9 @@ const DB_FILE = resolve(__dirname, "../../local.db");
  * Preserves the secret key from the database.
  */
 async function updateGithubWebhooks(newUrl) {
-	console.log(`[webhook-server] 🔄 Synchronizing GitHub webhooks with: ${newUrl}`);
+	console.log(
+		`[webhook-server] 🔄 Synchronizing GitHub webhooks with: ${newUrl}`,
+	);
 	const fullWebhookUrl = `${newUrl}/github/webhook`;
 
 	try {
@@ -80,7 +85,9 @@ async function updateGithubWebhooks(newUrl) {
 		).trim();
 
 		if (!dbOutput) {
-			console.log("[webhook-server] ⚠️ No active repositories found in database. Skipping sync.");
+			console.log(
+				"[webhook-server] ⚠️ No active repositories found in database. Skipping sync.",
+			);
 			return;
 		}
 
@@ -93,14 +100,18 @@ async function updateGithubWebhooks(newUrl) {
 			console.log(`[webhook-server] 📡 Updating ${repo}...`);
 
 			// 2. Find hook ID
-			const hooksJson = execSync(`gh api repos/${repo}/hooks`, { encoding: "utf-8" });
+			const hooksJson = execSync(`gh api repos/${repo}/hooks`, {
+				encoding: "utf-8",
+			});
 			const hooks = JSON.parse(hooksJson);
-			const targetHook = hooks.find((h) => 
-				h.config.url.includes("trycloudflare.com") || hooks.length === 1
+			const targetHook = hooks.find(
+				(h) => h.config.url.includes("trycloudflare.com") || hooks.length === 1,
 			);
 
 			if (!targetHook) {
-				console.log(`[webhook-server] ❌ Could not find a suitable webhook to update for ${repo}.`);
+				console.log(
+					`[webhook-server] ❌ Could not find a suitable webhook to update for ${repo}.`,
+				);
 				continue;
 			}
 
@@ -114,11 +125,17 @@ async function updateGithubWebhooks(newUrl) {
 				},
 			});
 
-			execSync(`echo '${patchData}' | gh api -X PATCH repos/${repo}/hooks/${targetHook.id} --input -`);
-			console.log(`[webhook-server] ✅ Successfully updated webhook for ${repo}.`);
+			execSync(
+				`echo '${patchData}' | gh api -X PATCH repos/${repo}/hooks/${targetHook.id} --input -`,
+			);
+			console.log(
+				`[webhook-server] ✅ Successfully updated webhook for ${repo}.`,
+			);
 		}
 	} catch (err) {
-		console.error(`[webhook-server] ❌ Failed to update GitHub webhooks: ${err.message}`);
+		console.error(
+			`[webhook-server] ❌ Failed to update GitHub webhooks: ${err.message}`,
+		);
 	}
 }
 
@@ -141,7 +158,14 @@ await new Promise((r) => setTimeout(r, 2000));
 
 const cf = spawn(
 	"cloudflared",
-	["tunnel", "--protocol", "http2", "--url", "http://localhost:8090", "--no-autoupdate"],
+	[
+		"tunnel",
+		"--protocol",
+		"http2",
+		"--url",
+		"http://localhost:8090",
+		"--no-autoupdate",
+	],
 	{ stdio: ["ignore", "pipe", "pipe"] },
 );
 
