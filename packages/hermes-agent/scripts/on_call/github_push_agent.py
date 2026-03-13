@@ -4,6 +4,7 @@ GitHub Push Agent — thin Hermes wrapper.
 Hermes handles everything: analyzing changed files, maybe running tests.
 """
 import os, subprocess, pathlib, logging
+from typing import Optional
 from datetime import datetime
 from dotenv import load_dotenv
 from run_agent import AIAgent
@@ -11,8 +12,9 @@ from run_agent import AIAgent
 try:
     from reporter import send_telegram_message, get_global_config, NOUS_API_BASE_URL, OPENROUTER_BASE_URL
 except ImportError:
-    def send_telegram_message(msg):
-        logging.info(f"Telegram MSG: {msg}")
+    def send_telegram_message(text: str, chat_id: Optional[str] = None, token: Optional[str] = None) -> bool:
+        logging.info(f"Telegram MSG: {text}")
+        return True
     def get_global_config(key):
         return os.getenv(key, "")
     NOUS_API_BASE_URL = "https://inference-api.nousresearch.com/v1"
@@ -28,12 +30,13 @@ LOG_DIR.mkdir(parents=True, exist_ok=True)
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 
-def handle_push(branch: str, pusher: str = "", head_commit_msg: str = "", head_commit_url: str = "", owner: str = None, repo: str = None):
+def handle_push(branch: str, pusher: str = "", head_commit_msg: str = "", head_commit_url: str = "", owner: Optional[str] = None, repo: Optional[str] = None, bot_token: Optional[str] = None):
     project_slug = f"{owner}/{repo}" if owner and repo else branch
     logging.info(f"🚀 Dispatching Hermes for Push to {project_slug} ({branch})")
 
     send_telegram_message(
-        f"🚀 *GitHub Push to {branch}* in {project_slug}\n*{head_commit_msg}*\nby {pusher}\n\n🔍 Hermes analyzing changes..."
+        f"🚀 *GitHub Push to {branch}* in {project_slug}\n*{head_commit_msg}*\nby {pusher}\n\n🔍 Hermes analyzing changes...",
+        token=bot_token
     )
 
     prompt = f"""A new Push has been made to the branch `{branch}` in this repository ({project_slug}).
@@ -66,9 +69,9 @@ YOUR TASKS (in order):
 
         # Initialize Agent
         agent = AIAgent(
-            model=target_model,
-            api_key=active_key,
-            base_url=target_base_url,
+            model=get_global_config("MODEL") or "nousresearch/hermes-3-llama-3.1-405b",
+            api_key=get_global_config("NOUS_API_KEY") or "",
+            base_url=NOUS_API_BASE_URL,
             quiet_mode=True, # No spinners for background agents
             enabled_toolsets=["terminal", "file", "web"],
         )
@@ -84,9 +87,9 @@ YOUR TASKS (in order):
 
     except Exception as e:
         logging.error(f"Push agent failed: {e}")
-        send_telegram_message(f"❌ Hermes analysis failed for {branch}: {e}")
+        send_telegram_message(f"❌ Hermes analysis failed for {branch}: {e}", token=bot_token)
 
-    send_telegram_message(f"✅ Push to {branch} analyzed.")
+    send_telegram_message(f"✅ Push to {branch} analyzed.", token=bot_token)
     logging.info(f"✅ Hermes done for Push to {branch}")
 
 if __name__ == "__main__":

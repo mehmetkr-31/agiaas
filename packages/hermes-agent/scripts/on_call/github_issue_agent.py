@@ -4,6 +4,7 @@ GitHub Issue Agent — thin Hermes wrapper.
 Hermes handles everything: gh CLI, web search, code analysis, GitHub comment.
 """
 import os, subprocess, pathlib, logging, time, re
+from typing import Optional
 from datetime import datetime
 from dotenv import load_dotenv
 from run_agent import AIAgent
@@ -18,9 +19,11 @@ LOG_DIR.mkdir(parents=True, exist_ok=True)
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 
 
-def ensure_repo_cloned(owner: str, repo: str) -> pathlib.Path:
+def ensure_repo_cloned(owner: Optional[str], repo: Optional[str]) -> pathlib.Path:
     """Clone or pull the target repository into .tmp/owner/repo"""
-    repo_dir = DATA_DIR / owner / repo
+    if not owner or not repo:
+        raise ValueError("Owner and repo must be provided")
+    repo_dir = DATA_DIR / str(owner) / str(repo)
     repo_dir.parent.mkdir(parents=True, exist_ok=True)
     
     if not repo_dir.exists():
@@ -32,14 +35,15 @@ def ensure_repo_cloned(owner: str, repo: str) -> pathlib.Path:
     return repo_dir
 
 
-def handle_issue(issue_number: int, title: str = "", body: str = "", owner: str = None, repo: str = None):
+def handle_issue(issue_number: int, title: str = "", body: str = "", owner: Optional[str] = None, repo: Optional[str] = None, bot_token: Optional[str] = None):
     logging.info(f"📋 Dispatching Hermes for Issue #{issue_number} in {owner}/{repo}")
 
     # Ensure we are looking at the RIGHT codebase
     repo_path = ensure_repo_cloned(owner, repo)
 
     send_telegram_message(
-        f"📋 *GitHub Issue #{issue_number}* at {owner}/{repo}\n*{title}*\n\n🔍 Hermes analyzing..."
+        f"📋 *GitHub Issue #{issue_number}* at {owner}/{repo}\n*{title}*\n\n🔍 Hermes analyzing...",
+        token=bot_token
     )
 
     prompt = f"""GitHub Issue #{issue_number} has just been opened in the repository {owner}/{repo}.
@@ -92,9 +96,9 @@ Structure the final analysis block as:
 
         # Initialize Agent
         agent = AIAgent(
-            model=target_model,
-            api_key=active_key,
-            base_url=target_base_url,
+            model=get_global_config("MODEL") or target_model,
+            api_key=get_global_config("NOUS_API_KEY") or "",
+            base_url=NOUS_API_BASE_URL,
             quiet_mode=True,
             enabled_toolsets=["terminal", "file", "web"],
             ephemeral_system_prompt=(
@@ -117,7 +121,7 @@ Structure the final analysis block as:
     except Exception as e:
         log_step(f"Hermes FAILED: {e}")
         logging.error(f"Issue agent failed: {e}")
-        send_telegram_message(f"❌ Hermes analysis failed for Issue #{issue_number}: {e}")
+        send_telegram_message(f"❌ Hermes analysis failed for Issue #{issue_number}: {e}", token=bot_token)
         return
 
     # Log results
@@ -147,7 +151,7 @@ Structure the final analysis block as:
 
     # Request Approval
     approval_text = f"Hermes has finished analyzing Issue #{issue_number}.\n\n*Proposed Comment:*\n{analysis[:1000]}..."
-    approved = request_approval(approval_text, f"issue_{issue_number}_{int(time.time())}")
+    approved = request_approval(approval_text, f"issue_{issue_number}_{int(time.time())}", token=bot_token)
 
     if approved:
         log_step("Approved! Posting to GitHub...")
@@ -155,16 +159,16 @@ Structure the final analysis block as:
         try:
             cmd = ["gh", "issue", "comment", str(issue_number), "--repo", f"{owner}/{repo}", "--body", analysis]
             subprocess.run(cmd, check=True, capture_output=True, text=True)
-            send_telegram_message(f"✅ Comment posted to Issue #{issue_number}.")
+            send_telegram_message(f"✅ Comment posted to Issue #{issue_number}.", token=bot_token)
             log_step("Posted successfully.")
         except Exception as e:
             logging.error(f"Failed to post comment: {e}")
-            send_telegram_message(f"❌ Failed to post comment to Issue #{issue_number}: {e}")
+            send_telegram_message(f"❌ Failed to post comment to Issue #{issue_number}: {e}", token=bot_token)
             log_step(f"Post FAILED: {e}")
     else:
         log_step("Rejected by user.")
         logging.info("🛑 Rejected by user. Skipping comment.")
-        send_telegram_message(f"🛑 Analysis for Issue #{issue_number} was rejected. No comment posted.")
+        send_telegram_message(f"🛑 Analysis for Issue #{issue_number} was rejected. No comment posted.", token=bot_token)
 
     logging.info(f"✅ Hermes done for issue #{issue_number}")
     log_step("Mission complete.")

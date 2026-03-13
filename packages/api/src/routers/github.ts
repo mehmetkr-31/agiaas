@@ -20,12 +20,19 @@ export const githubRouter = {
 				repoFullName: z.string(),
 				webhookSecret: z.string().min(1),
 				telegramChatId: z.string(),
+				telegramBotToken: z.string().optional(),
 			}),
 		)
 		.handler(async ({ input }) => {
-			const { repoFullName, webhookSecret: rawSecret, telegramChatId } = input;
+			const {
+				repoFullName,
+				webhookSecret: rawSecret,
+				telegramChatId,
+				telegramBotToken: rawBotToken,
+			} = input;
 			const id = crypto.randomUUID();
 			const webhookSecret = encrypt(rawSecret);
+			const telegramBotToken = rawBotToken ? encrypt(rawBotToken) : null;
 
 			await db
 				.insert(hermesProject)
@@ -34,6 +41,7 @@ export const githubRouter = {
 					repoFullName,
 					webhookSecret,
 					telegramChatId,
+					telegramBotToken,
 					isActive: true,
 				})
 				.onConflictDoUpdate({
@@ -41,6 +49,7 @@ export const githubRouter = {
 					set: {
 						webhookSecret: encrypt(rawSecret),
 						telegramChatId,
+						telegramBotToken: rawBotToken ? encrypt(rawBotToken) : null,
 						isActive: true,
 					},
 				});

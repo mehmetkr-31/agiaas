@@ -341,7 +341,11 @@ importers:
         specifier: ^5
         version: 5.9.3
 
-  packages/hermes-agent: {}
+  packages/hermes-agent:
+    devDependencies:
+      pyright:
+        specifier: ^1.1
+        version: 1.1.408
 
   packages/ui:
     dependencies:
@@ -3644,6 +3648,11 @@ packages:
 
   pure-rand@6.1.0:
     resolution: {integrity: sha512-bVWawvoZoBYpp6yIoQtQXHZjmz35RSVHnUOTefl8Vcjr8snTPY1wnpSPMWekcFwbxI6gtmT7rSYPFvz71ldiOA==}
+
+  pyright@1.1.408:
+    resolution: {integrity: sha512-N61pxaLLCsPcUuPPHMNIrGoZgGBgrbjBX5UqkaT5UV8NVZdL7ExsO6N3ectv1DzAUsLOzdlyqoYtX76u8eF4YA==}
+    engines: {node: '>=14.0.0'}
+    hasBin: true
 
   qs@6.15.0:
     resolution: {integrity: sha512-mAZTtNCeetKMH+pSjrb76NAM8V9a05I9aBZOHztWy/UqcJdQYNsf59vrRKWnojAT9Y+GbIvoTBC++CPHqpDBhQ==}
@@ -7296,6 +7305,10 @@ snapshots:
   punycode@2.3.1: {}
 
   pure-rand@6.1.0: {}
+
+  pyright@1.1.408:
+    optionalDependencies:
+      fsevents: 2.3.3
 
   qs@6.15.0:
     dependencies:
