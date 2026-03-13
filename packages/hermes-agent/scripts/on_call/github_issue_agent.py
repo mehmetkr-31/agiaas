@@ -19,8 +19,8 @@ from reporter import (
     log_step as central_log_step,
     NOUS_API_BASE_URL,
     OPENROUTER_BASE_URL,
-    CORE_HERMES_RULES,
 )
+from prompts import ISSUE_EVENT_TEMPLATE, CORE_SAFETY_RULES
 
 load_dotenv()
 AGENT_ROOT = pathlib.Path(__file__).parent.parent.parent.resolve()
@@ -54,31 +54,12 @@ def handle_issue(
     )
 
     body_snippet = str(body or "")[:2000]
-    prompt = f"""GitHub Issue #{issue_number} has just been opened in the repository {owner}/{repo}.
-
-Title: {title}
-Body:
-{body_snippet}
-
-YOUR TASK:
-1. Research the problem:
-   - ⚡ PERFORMANCE RULE: The repository should be available at `{repo_path}`.
-   - Prefer fast local terminal commands like `ls -la {repo_path}`, `cat`, `grep`, or file tools.
-   - Only use slow `gh api` or network calls if the local path is missing or incomplete.
-   - ⚠️ IMPORTANT: If you find {repo_path} is empty or missing, do NOT hallucinate code. Use `gh repo view {owner}/{repo}` to verify.
-   - Use web_search if needed.
-2. Formulate a detailed analysis.
-3. Wrap your final analysis with these exact tags: [ANALYSIS_START] and [ANALYSIS_END].
-   (Do NOT use these tags in your earlier reasoning or thoughts).
-   I will present this analysis to the human for approval before posting it.
-   DO NOT use the terminal tool to post the comment yourself.
-
-Structure the final analysis block as:
-## 🤖 Hermes Analysis
-### Root Cause Hypothesis
-### Recommended Fix
-### References
-"""
+    prompt = (
+        ISSUE_EVENT_TEMPLATE.format(
+            issue_number=issue_number, repo=f"{owner}/{repo}", title=title
+        )
+        + f"\n\nDescription:\n{body_snippet}\n\nLocal Path: {repo_path}"
+    )
 
     log_file = (
         LOG_DIR / f"issue_{issue_number}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
@@ -114,14 +95,10 @@ Structure the final analysis block as:
             api_key=active_key or "",
             base_url=target_base_url,
             quiet_mode=True,
-            enabled_toolsets=["terminal", "file", "web"],
+            enabled_toolsets=["terminal", "file", "web", "vision"],
+            reasoning_config={"enabled": True, "effort": "high"},
             ephemeral_system_prompt=(
-                "You are an autonomous on-call bot. Your goal is to research issues and provide a structured analysis.\n"
-                "STRICT RULES:\n"
-                "- NO DIRECT COMMITS TO MAIN/MASTER: You are ABSOLUTELY FORBIDDEN from pushing commits directly to main or master branches.\n"
-                "- MANDATORY PULL REQUESTS: All codebase changes MUST be done by creating a new branch, committing your changes, pushing the branch, and then creating a Pull Request (gh pr create).\n"
-                "- PULL REQUEST MERGING: If the user explicitly asks you to merge a Pull Request, you may run `gh pr merge <pr_number> --merge --admin` or `gh pr merge <pr_number> --merge`. ONLY do this if they specifically request a merge.\n"
-                f"{CORE_HERMES_RULES}"
+                f"You are an autonomous GitHub Issue agent.\n{CORE_SAFETY_RULES}"
             ),
         )
 

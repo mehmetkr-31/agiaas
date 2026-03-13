@@ -19,8 +19,8 @@ from reporter import (
     log_step as central_log_step,
     NOUS_API_BASE_URL,
     OPENROUTER_BASE_URL,
-    CORE_HERMES_RULES,
 )
+from prompts import PR_EVENT_TEMPLATE, CORE_SAFETY_RULES
 
 load_dotenv()
 AGENT_ROOT = pathlib.Path(__file__).parent.parent.parent.resolve()
@@ -53,35 +53,12 @@ def handle_pr(
         repo_full_name=f"{owner}/{repo}",
     )
 
-    prompt = f"""Review the following GitHub Pull Request #{pr_number} in {owner}/{repo}:
-
-Title: {title}
-Author: {author}
-
-YOUR TASK:
-1. Research the changes:
-   - ⚡ PERFORMANCE RULE: The repository should be available at `{repo_path}`.
-   - Prefer fast local terminal commands like `ls -la {repo_path}`, `cat`, `grep`, or file tools.
-   - Only use slow `gh api` or network calls if the local path is missing or incomplete.
-   - Check the PR diff using terminal commands if needed.
-   - Search the codebase at {repo_path} to understand the impact.
-2. Formulate a detailed review.
-3. Wrap your final review with these exact tags: [ANALYSIS_START] and [ANALYSIS_END].
-   (Do NOT use these tags in your earlier reasoning or thoughts).
-4. Provide a [VERDICT]: either "approve" or "request-changes" or "comment".
-- NO HALLUCINATION: I repeat, do NOT invent titles like "Science Icon doesn't render" or "BoxShadow layout shift". If you provide data not found in the tool output, you are failing your mission.
-- HIGH FIDELITY: When reporting data from tools (issues, PRs, logs), stay as close as possible to the actual text provided by the tool. Do NOT rephrase in a way that adds info or changes technical meaning. If an issue says "bug in contact.html", do NOT say "bug in the contact form" unless you've verified it's a form.
-- NO PRE-ACKNOWLEDGMENTS: Do NOT say "I will now fetch the data" or "Let me check that for you". Just execute the tool and provide the final answer once you have the results.
-
-I will present this to the human for approval.
-DO NOT use the terminal tool to post the review yourself.
-
-Structure the review block as:
-## 🤖 Hermes Review
-### Summary
-### Findings & Suggestions
-### Verdict
-"""
+    prompt = (
+        PR_EVENT_TEMPLATE.format(
+            pr_number=pr_number, repo=f"{owner}/{repo}", title=title
+        )
+        + f"\n\nAuthor: {author}\nLocal Path: {repo_path}"
+    )
 
     log_file = (
         LOG_DIR / f"pr_{pr_number}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
@@ -117,14 +94,10 @@ Structure the review block as:
             api_key=active_key or "",
             base_url=target_base_url,
             quiet_mode=True,
-            enabled_toolsets=["terminal", "file", "web"],
+            enabled_toolsets=["terminal", "file", "web", "vision"],
+            reasoning_config={"enabled": True, "effort": "high"},
             ephemeral_system_prompt=(
-                "You are an autonomous on-call bot. Your goal is to review Pull Requests and provide structured feedback.\n"
-                "STRICT RULES:\n"
-                "- NO DIRECT COMMITS TO MAIN/MASTER: You are ABSOLUTELY FORBIDDEN from pushing commits directly to main or master branches.\n"
-                "- MANDATORY PULL REQUESTS: All codebase changes MUST be done by creating a new branch, committing your changes, pushing the branch, and then creating a Pull Request (gh pr create).\n"
-                "- PULL REQUEST MERGING: If the user explicitly asks you to merge a Pull Request, you may run `gh pr merge <pr_number> --merge --admin` or `gh pr merge <pr_number> --merge`. ONLY do this if they specifically request a merge.\n"
-                f"{CORE_HERMES_RULES}"
+                f"You are an autonomous GitHub PR Review agent.\n{CORE_SAFETY_RULES}"
             ),
         )
 
