@@ -116,6 +116,7 @@ function GeneralSettings() {
 	const [form, setForm] = useState({
 		githubWebhookSecret: "",
 		telegramChatId: "",
+		telegramBotToken: "",
 		selectedRepo: "",
 	});
 	const set = (key: keyof typeof form) => (v: string) =>
@@ -126,7 +127,12 @@ function GeneralSettings() {
 		orpc.github.addProject.mutationOptions({
 			onSuccess: () => {
 				queryClient.invalidateQueries();
-				setForm((f) => ({ ...f, webhookSecret: "", telegramChatId: "" }));
+				setForm((f) => ({
+					...f,
+					githubWebhookSecret: "",
+					telegramChatId: "",
+					telegramBotToken: "",
+				}));
 			},
 		}),
 	);
@@ -341,6 +347,12 @@ function GeneralSettings() {
 											</div>
 											<div>
 												<span className="font-semibold text-foreground">
+													Bot:
+												</span>{" "}
+												{p.telegramBotToken ? "✅ Set" : "❌ Global"}
+											</div>
+											<div>
+												<span className="font-semibold text-foreground">
 													Secret:
 												</span>{" "}
 												{p.webhookSecret ? "••••••••" : "Not Set"}
@@ -441,12 +453,22 @@ function GeneralSettings() {
 							</p>
 						</div>
 
+						<SecretInput
+							id="projectTgToken"
+							label="Telegram Bot Token"
+							value={form.telegramBotToken}
+							onChange={set("telegramBotToken")}
+							placeholder="Project-specific bot token (optional)"
+							hint="Leave empty to use the global bot token"
+						/>
+
 						<Button
 							onClick={() =>
 								addProjectMutation.mutate({
 									repoFullName: form.selectedRepo,
 									webhookSecret: form.githubWebhookSecret,
 									telegramChatId: form.telegramChatId,
+									telegramBotToken: form.telegramBotToken || undefined,
 								})
 							}
 							disabled={

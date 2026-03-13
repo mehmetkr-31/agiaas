@@ -4,6 +4,7 @@ GitHub PR Agent — thin Hermes wrapper.
 Hermes handles everything: reading diff, code review, posting gh pr review.
 """
 import os, subprocess, pathlib, logging, time, re
+from typing import Optional
 from datetime import datetime
 from dotenv import load_dotenv
 from run_agent import AIAgent
@@ -18,9 +19,11 @@ LOG_DIR.mkdir(parents=True, exist_ok=True)
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 
 
-def ensure_repo_cloned(owner: str, repo: str) -> pathlib.Path:
+def ensure_repo_cloned(owner: Optional[str], repo: Optional[str]) -> pathlib.Path:
     """Clone or pull the target repository into .tmp/owner/repo"""
-    repo_dir = DATA_DIR / owner / repo
+    if not owner or not repo:
+        raise ValueError("Owner and repo must be provided")
+    repo_dir = DATA_DIR / str(owner) / str(repo)
     repo_dir.parent.mkdir(parents=True, exist_ok=True)
     
     if not repo_dir.exists():
@@ -32,14 +35,15 @@ def ensure_repo_cloned(owner: str, repo: str) -> pathlib.Path:
     return repo_dir
 
 
-def handle_pr(pr_number: int, title: str = "", author: str = "", owner: str = None, repo: str = None):
+def handle_pr(pr_number: int, title: str = "", author: str = "", owner: Optional[str] = None, repo: Optional[str] = None, bot_token: Optional[str] = None):
     logging.info(f"🔀 Dispatching Hermes for PR #{pr_number} in {owner}/{repo}")
 
     # Ensure we are looking at the RIGHT codebase
     repo_path = ensure_repo_cloned(owner, repo)
 
     send_telegram_message(
-        f"🔀 *GitHub PR #{pr_number}* at {owner}/{repo}\n*{title}*\nby {author}\n\n🔍 Hermes reviewing..."
+        f"🔀 *GitHub PR #{pr_number}* at {owner}/{repo}\n*{title}*\nby {author}\n\n🔍 Hermes reviewing...",
+        token=bot_token
     )
 
     prompt = f"""Review the following GitHub Pull Request #{pr_number} in {owner}/{repo}:
@@ -93,8 +97,8 @@ Structure the review block as:
 
         # Initialize Agent
         agent = AIAgent(
-            model=target_model,
-            api_key=active_key,
+            model=get_global_config("MODEL") or target_model,
+            api_key=get_global_config("OPENROUTER_API_KEY") or "",
             base_url=target_base_url,
             quiet_mode=True,
             enabled_toolsets=["terminal", "file", "web"],
@@ -118,7 +122,7 @@ Structure the review block as:
     except Exception as e:
         log_step(f"Hermes FAILED: {e}")
         logging.error(f"PR agent failed: {e}")
-        send_telegram_message(f"❌ Hermes analysis failed for PR #{pr_number}: {e}")
+        send_telegram_message(f"❌ Hermes analysis failed for PR #{pr_number}: {e}", token=bot_token)
         return
 
     # Log results
@@ -151,7 +155,7 @@ Structure the review block as:
 
     # Request Approval
     approval_text = f"Hermes review for PR #{pr_number} is ready.\n\n*Verdict:* `{verdict.upper()}`\n\n*Review Preview:*\n{analysis[:1000]}..."
-    approved = request_approval(approval_text, f"pr_{pr_number}_{int(time.time())}")
+    approved = request_approval(approval_text, f"pr_{pr_number}_{int(time.time())}", token=bot_token)
 
     if approved:
         log_step("Approved! Posting to GitHub...")
@@ -163,19 +167,19 @@ Structure the review block as:
                 capture_output=True, text=True
             )
             if process.returncode == 0:
-                send_telegram_message(f"✅ PR review posted to #{pr_number} ({verdict}).")
+                send_telegram_message(f"✅ PR review posted to #{pr_number} ({verdict}).", token=bot_token)
                 log_step("Posted successfully.")
             else:
                 log_step(f"Post FAILED: {process.stderr[:100]}")
-                send_telegram_message(f"❌ Failed to post PR review: {process.stderr[:200]}")
+                send_telegram_message(f"❌ Failed to post PR review: {process.stderr[:200]}", token=bot_token)
         except Exception as e:
             logging.error(f"Failed to post PR review: {e}")
-            send_telegram_message(f"❌ Failed to post PR review to #{pr_number}: {e}")
+            send_telegram_message(f"❌ Failed to post PR review to #{pr_number}: {e}", token=bot_token)
             log_step(f"Post FAIL: {e}")
     else:
         log_step("Rejected by user.")
         logging.info("🛑 Rejected by user. Skipping evaluation.")
-        send_telegram_message(f"🛑 Review for PR #{pr_number} was rejected by user.")
+        send_telegram_message(f"🛑 Review for PR #{pr_number} was rejected by user.", token=bot_token)
 
     logging.info(f"✅ Hermes done for PR #{pr_number}")
     log_step("Mission complete.")

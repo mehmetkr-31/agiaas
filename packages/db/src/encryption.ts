@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { env } from "@agiaas/env/server";
 
 const ALGORITHM = "aes-256-gcm";
 const IV_LENGTH = 12;
@@ -42,8 +43,9 @@ export function decrypt(hash: string): string {
 	return decrypted.toString("utf8");
 }
 
+
 function getEncryptionKey(): Buffer {
-	const secret = process.env.DB_ENCRYPTION_KEY;
+	const secret = env.DB_ENCRYPTION_KEY;
 	if (!secret) {
 		throw new Error("DB_ENCRYPTION_KEY is not set in environment variables.");
 	}

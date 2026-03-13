@@ -11,6 +11,7 @@ export const env = createEnv({
 		NODE_ENV: z
 			.enum(["development", "production", "test"])
 			.default("development"),
+		DB_ENCRYPTION_KEY: z.string().min(32),
 	},
 	runtimeEnv: process.env,
 	emptyStringAsUndefined: true,

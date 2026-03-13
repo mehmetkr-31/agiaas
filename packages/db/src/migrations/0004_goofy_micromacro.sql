@@ -1,0 +1,1 @@
+ALTER TABLE `hermes_project` ADD `telegram_bot_token` text;

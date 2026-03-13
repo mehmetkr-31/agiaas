@@ -4,6 +4,7 @@ GitHub Action Agent — thin Hermes wrapper.
 Hermes handles everything: reading logs, diagnosing, rollback via gh CLI.
 """
 import os, subprocess, pathlib, logging, time, re
+from typing import Optional
 from datetime import datetime
 from dotenv import load_dotenv
 from run_agent import AIAgent
@@ -18,9 +19,11 @@ LOG_DIR.mkdir(parents=True, exist_ok=True)
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 
 
-def ensure_repo_cloned(owner: str, repo: str) -> pathlib.Path:
+def ensure_repo_cloned(owner: Optional[str], repo: Optional[str]) -> pathlib.Path:
     """Clone or pull the target repository into .tmp/owner/repo"""
-    repo_dir = DATA_DIR / owner / repo
+    if not owner or not repo:
+        raise ValueError("Owner and repo must be provided")
+    repo_dir = DATA_DIR / str(owner) / str(repo)
     repo_dir.parent.mkdir(parents=True, exist_ok=True)
     
     if not repo_dir.exists():
@@ -32,7 +35,7 @@ def ensure_repo_cloned(owner: str, repo: str) -> pathlib.Path:
     return repo_dir
 
 
-def handle_failed_action(run_id: int, workflow_name: str = "", branch: str = "", owner: str = None, repo: str = None):
+def handle_failed_action(run_id: int, workflow_name: str = "", branch: str = "", owner: Optional[str] = None, repo: Optional[str] = None, bot_token: Optional[str] = None):
     logging.info(f"⚙️ Dispatching Hermes for failed Action run #{run_id} in {owner}/{repo}")
 
     # Ensure we are looking at the RIGHT codebase
@@ -40,7 +43,8 @@ def handle_failed_action(run_id: int, workflow_name: str = "", branch: str = "",
 
     send_telegram_message(
         f"⚙️ *GitHub Action Failed* in {owner}/{repo}\n"
-        f"*{workflow_name}* on `{branch}`\n\n🔍 Hermes analyzing..."
+        f"*{workflow_name}* on `{branch}`\n\n🔍 Hermes analyzing...",
+        token=bot_token
     )
 
     prompt = f"""A GitHub Actions workflow run has FAILED in the repository {owner}/{repo}.
@@ -86,7 +90,7 @@ YOUR TASK:
         # Initialize Agent
         agent = AIAgent(
             model=target_model,
-            api_key=active_key,
+            api_key=active_key or "",
             base_url=target_base_url,
             quiet_mode=True,
             enabled_toolsets=["terminal", "file", "web"],
@@ -110,7 +114,7 @@ YOUR TASK:
     except Exception as e:
         log_step(f"Hermes FAILED: {e}")
         logging.error(f"Action agent failed: {e}")
-        send_telegram_message(f"❌ Hermes analysis failed for Action #{run_id}: {e}")
+        send_telegram_message(f"❌ Hermes analysis failed for Action #{run_id}: {e}", token=bot_token)
         return
 
     # Log results
@@ -136,24 +140,24 @@ YOUR TASK:
 
     # Request Approval
     approval_text = f"Hermes diagnosed a failure in *- {workflow_name} -*\n\n*Diagnosis:*\n{diagnosis[:1000]}...\n\n*Should I rerun the failed jobs?*"
-    approved = request_approval(approval_text, f"action_{run_id}_{int(time.time())}")
+    approved = request_approval(approval_text, f"action_{run_id}_{int(time.time())}", token=bot_token)
 
     if approved:
         log_step("Approved! Rerunning jobs...")
         logging.info("🚀 Approved! Rerunning failed jobs.")
         result = do_rollback(run_id, owner, repo)
-        send_telegram_message(f"🔄 {result}")
+        send_telegram_message(f"🔄 {result}", token=bot_token)
         log_step(f"Result: {result}")
     else:
         log_step("Rejected by user.")
         logging.info("🛑 Rejected by user. Skipping rerun.")
-        send_telegram_message(f"🛑 Rerun for Action #{run_id} was rejected by user.")
+        send_telegram_message(f"🛑 Rerun for Action #{run_id} was rejected by user.", token=bot_token)
 
     logging.info(f"✅ Hermes done for Action run #{run_id}")
     log_step("Mission complete.")
 
 
-def do_rollback(run_id: int, owner: str = None, repo: str = None) -> str:
+def do_rollback(run_id: int, owner: Optional[str] = None, repo: Optional[str] = None) -> str:
     """Triggered by approval or legacy command."""
     try:
         repo_arg = f"{owner}/{repo}" if owner and repo else None

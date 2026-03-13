@@ -22,6 +22,7 @@ import sys
 from datetime import datetime
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, BackgroundTasks, Request, HTTPException
+from typing import Optional
 import uvicorn
 from run_agent import AIAgent
 from encryption_utils import decrypt
@@ -95,6 +96,21 @@ def _get_webhook_secret_for_repo(repo_full_name: str) -> str:
         logging.error(f"Failed to read webhook_secret from DB for {repo_full_name}: {e}")
     return ""
 
+def _get_bot_token_for_repo(repo_full_name: str) -> Optional[str]:
+    """Fetch and decrypt the project-specific bot token if it exists."""
+    try:
+        if DB_FILE.exists():
+            with sqlite3.connect(DB_FILE) as conn:
+                cur = conn.cursor()
+                cur.execute("SELECT telegram_bot_token FROM hermes_project WHERE repo_full_name = ?", (repo_full_name,))
+                row = cur.fetchone()
+                if row and row[0]:
+                    logging.info(f"🤖 Bot token found for {repo_full_name} in DB.")
+                    return decrypt(row[0])
+    except Exception as e:
+        logging.error(f"Failed to read telegram_bot_token from DB for {repo_full_name}: {e}")
+    return None
+
 def _verify_github_signature(body: bytes, sig_header: str, payload: dict) -> bool:
     """HMAC-SHA256 verification for GitHub webhooks."""
     repo_full_name = payload.get("repository", {}).get("full_name")
@@ -129,7 +145,7 @@ def _verify_github_signature(body: bytes, sig_header: str, payload: dict) -> boo
 
 # ── GitHub event handlers ──────────────────────────────────────────────────────
 
-def _handle_github_issue(payload: dict, owner: str = None, repo: str = None):
+def _handle_github_issue(payload: dict, owner: Optional[str] = None, repo: Optional[str] = None):
     issue  = payload.get("issue", {})
     number = issue.get("number")
     if not number:
@@ -138,14 +154,17 @@ def _handle_github_issue(payload: dict, owner: str = None, repo: str = None):
     body   = issue.get("body", "") or ""
     logging.info(f"📋 GitHub Issue #{number} opened in {owner}/{repo} — dispatching Issue Agent")
     _log_github_event("issue", number, payload)
+    
+    bot_token = _get_bot_token_for_repo(f"{owner}/{repo}")
+    
     try:
         from github_issue_agent import handle_issue
-        handle_issue(number, title=title, body=body, owner=owner, repo=repo)
+        handle_issue(number, title=title, body=body, owner=owner, repo=repo, bot_token=bot_token)
     except Exception as e:
         logging.error(f"Issue agent failed: {e}")
 
 
-def _handle_github_pr(payload: dict, owner: str = None, repo: str = None):
+def _handle_github_pr(payload: dict, owner: Optional[str] = None, repo: Optional[str] = None):
     pr     = payload.get("pull_request", {})
     number = pr.get("number")
     if not number:
@@ -154,14 +173,17 @@ def _handle_github_pr(payload: dict, owner: str = None, repo: str = None):
     author = pr.get("user", {}).get("login", "")
     logging.info(f"🔀 GitHub PR #{number} in {owner}/{repo} — dispatching PR Agent")
     _log_github_event("pr", number, payload)
+    
+    bot_token = _get_bot_token_for_repo(f"{owner}/{repo}")
+    
     try:
         from github_pr_agent import handle_pr
-        handle_pr(number, title=title, author=author, owner=owner, repo=repo)
+        handle_pr(number, title=title, author=author, owner=owner, repo=repo, bot_token=bot_token)
     except Exception as e:
         logging.error(f"PR agent failed: {e}")
 
 
-def _handle_github_action(payload: dict, owner: str = None, repo: str = None):
+def _handle_github_action(payload: dict, owner: Optional[str] = None, repo: Optional[str] = None):
     run        = payload.get("workflow_run", {})
     run_id     = run.get("id")
     conclusion = run.get("conclusion")
@@ -171,9 +193,12 @@ def _handle_github_action(payload: dict, owner: str = None, repo: str = None):
     branch        = run.get("head_branch", "?")
     logging.info(f"⚙️ GitHub Action run #{run_id} failed in {owner}/{repo} — dispatching Action Agent")
     _log_github_event("action", run_id, payload)
+    
+    bot_token = _get_bot_token_for_repo(f"{owner}/{repo}")
+    
     try:
         from github_action_agent import handle_failed_action
-        handle_failed_action(run_id, workflow_name=workflow_name, branch=branch, owner=owner, repo=repo)
+        handle_failed_action(run_id, workflow_name=workflow_name, branch=branch, owner=owner, repo=repo, bot_token=bot_token)
     except Exception as e:
         logging.error(f"Action agent failed: {e}")
 
@@ -274,9 +299,11 @@ async def github_webhook(request: Request, background_tasks: BackgroundTasks):
         payload_for_logger = {"push": {"title": title, "html_url": head_commit_url}}
         _log_github_event(event_type, 0, payload_for_logger)
         
+        bot_token = _get_bot_token_for_repo(f"{owner}/{repo_name}")
+        
         try:
             from github_push_agent import handle_push
-            background_tasks.add_task(handle_push, branch, pusher, head_commit_msg, head_commit_url, owner, repo_name)
+            background_tasks.add_task(handle_push, branch, pusher, head_commit_msg, head_commit_url, owner, repo_name, bot_token=bot_token)
         except Exception as e:
             logging.error(f"Push agent failed: {e}")
             
@@ -380,7 +407,7 @@ You are decisive, proactive, and strictly adhere to GitHub-native investigation 
         # Initialize Agent
         agent = AIAgent(
             model=target_model,
-            api_key=active_key,
+            api_key=active_key or "", # Handle potential None values for api_key
             base_url=target_base_url,
             quiet_mode=True,
             enabled_toolsets=["terminal", "file", "web", "vision"],

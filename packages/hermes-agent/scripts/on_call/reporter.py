@@ -101,7 +101,7 @@ sessions = SessionManager()
 
 # ── Approval Database Interface ─────────────────────────────────────────────
 
-def set_approval_status(approval_id: str, status: str, message_id: str = None, chat_id: str = None):
+def set_approval_status(approval_id: str, status: str, message_id: Optional[str] = None, chat_id: Optional[str] = None):
     """Update or insert approval status in the DB."""
     try:
         with sqlite3.connect(DB_FILE, timeout=20) as conn:
@@ -134,13 +134,14 @@ def get_approval_status(approval_id: str) -> str:
 
 # ── Blocking Approval Mechanism ─────────────────────────────────────────────
 
-async def _request_approval_async(text: str, approval_id: str, timeout: int = 300) -> bool:
+async def _request_approval_async(text: str, approval_id: str, timeout: int = 300, token: Optional[str] = None) -> bool:
     """Internal async logic to send a message with buttons and poll the DB."""
-    if not TELEGRAM_TOKEN or not CHAT_ID:
+    use_token = token or TELEGRAM_TOKEN
+    if not use_token or not CHAT_ID:
         logging.warning("Telegram not configured. Auto-approving for development.")
         return True
 
-    bot = telegram.Bot(token=TELEGRAM_TOKEN)
+    bot = telegram.Bot(token=use_token)
     keyboard = [
         [
             InlineKeyboardButton("✅ Approve", callback_data=f"appr_{approval_id}"),
@@ -183,7 +184,7 @@ async def _request_approval_async(text: str, approval_id: str, timeout: int = 30
         logging.error(f"Approval request failed for {approval_id}: {e}")
         return False
 
-def request_approval(text: str, approval_id: str, timeout: int = 300) -> bool:
+def request_approval(text: str, approval_id: str, timeout: int = 300, token: Optional[str] = None) -> bool:
     """
     Synchronous blocking call for agents. 
     Sends message with buttons and waits for user interaction in Telegram.
@@ -191,18 +192,19 @@ def request_approval(text: str, approval_id: str, timeout: int = 300) -> bool:
     logging.info(f"⏳ Waiting for user approval on {approval_id} via Telegram...")
     try:
         # Create a new loop for this sync call if none exists
-        return asyncio.run(_request_approval_async(text, approval_id, timeout))
+        return asyncio.run(_request_approval_async(text, approval_id, timeout, token=token))
     except Exception as e:
         logging.error(f"Error in request_approval sync wrapper: {e}")
         return False
 
 # ── Message Utilities ──────────────────────────────────────────────────────
 
-def send_telegram_message(text: str, chat_id: Optional[str] = None) -> bool:
+def send_telegram_message(text: str, chat_id: Optional[str] = None, token: Optional[str] = None) -> bool:
     """Simplified one-shot SDK message sender."""
-    if not TELEGRAM_TOKEN or not (chat_id or CHAT_ID): return False
+    use_token = token or TELEGRAM_TOKEN
+    if not use_token or not (chat_id or CHAT_ID): return False
     async def _send():
-        bot = telegram.Bot(token=TELEGRAM_TOKEN)
+        bot = telegram.Bot(token=use_token)
         await bot.send_message(chat_id=(chat_id or CHAT_ID), text=text, parse_mode="Markdown")
     try:
         asyncio.run(_send())
@@ -214,6 +216,7 @@ def send_telegram_message(text: str, chat_id: Optional[str] = None) -> bool:
 # ── Bot Loop & Command Handlers ─────────────────────────────────────────────
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not update.message: return
     await update.message.reply_text(
         "🤖 *Hermes Interactive Bot*\n\n"
         "/new — Clear conversation history\n"
@@ -225,6 +228,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 async def new_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not update.message or not update.effective_chat: return
     chat_id = str(update.effective_chat.id)
     if sessions.clear_history(chat_id):
         await update.message.reply_text("🧼 *Memory cleared.* Starting fresh!", parse_mode="Markdown")
@@ -232,22 +236,27 @@ async def new_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("Memory was already empty.")
 
 async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not update.message: return
     msg = "🏢 *Hermes Status*\n✅ All systems operational.\n"
     # Show last 3 approvals
     try:
-        with sqlite3.connect(DB_FILE, timeout=20) as conn:
-            cur = conn.cursor()
-            cur.execute("SELECT id, status FROM approvals ORDER BY created_at DESC LIMIT 3")
-            rows = cur.fetchall()
-            if rows:
-                msg += "\n🕒 *Recent Approvals:*\n"
-                for aid, status in rows:
-                    icon = "✅" if status == "approved" else "❌" if status == "rejected" else "⏳"
-                    msg += f"{icon} `{aid}`: {status}\n"
+        if DB_FILE.exists():
+            with sqlite3.connect(DB_FILE) as conn:
+                cur = conn.cursor()
+                cur.execute("SELECT id, status FROM approvals ORDER BY id DESC LIMIT 3")
+                rows = cur.fetchall()
+                if rows:
+                    msg += "\n*Recent Approvals:*\n"
+                    for r in rows:
+                        status_emoji = "✅" if r[1] == "approved" else "❌" if r[1] == "rejected" else "⏳"
+                        aid = str(r[0])
+                        short_aid = aid[-8:]
+                        msg += f"{status_emoji} `{short_aid}`: {r[1]}\n"
     except Exception: pass
     await update.message.reply_text(msg, parse_mode="Markdown")
 
 async def logs_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not update.message: return
     n = 30
     if context.args and context.args[0].isdigit():
         n = int(context.args[0])
@@ -288,6 +297,7 @@ async def chat_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     # Security: Check allowlist
+    if not update.effective_user or not update.effective_chat: return
     user_id = str(update.effective_user.id)
     allowed_list = [u.strip() for u in ALLOWED_USERS.split(",") if u.strip()]
     
@@ -410,7 +420,9 @@ You are decisive, proactive, and strictly adhere to GitHub-native investigation 
 async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Processes button clicks from approval messages."""
     query = update.callback_query
-    data = query.data
+    if query is None or query.data is None: return
+    
+    data = str(query.data)
     logging.info(f"🖱 Button clicked: {data}")
     
     try:
@@ -421,15 +433,20 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             logging.info(f"👍 Approving action: {aid}")
             set_approval_status(aid, "approved")
             # Update original message to show decision
-            new_text = query.message.text.replace("🛡 HERMES NEEDS YOUR PERMISSION", "✅ *ACTION APPROVED*")
-            await query.edit_message_text(text=new_text, parse_mode="Markdown")
+            if query.message:
+            # Use getattr because it could be InaccessibleMessage which doesn't have .text
+                msg_text = getattr(query.message, "text", "") or ""
+                new_text = str(msg_text).replace("🛡 *HERMES NEEDS YOUR PERMISSION*", "✅ *ACTION APPROVED*")
+                await query.edit_message_text(text=new_text, parse_mode="Markdown")
             
         elif data.startswith("rejc_"):
             aid = data[len("rejc_"):]
             logging.info(f"👎 Rejecting action: {aid}")
             set_approval_status(aid, "rejected")
-            new_text = query.message.text.replace("🛡 HERMES NEEDS YOUR PERMISSION", "❌ *ACTION REJECTED*")
-            await query.edit_message_text(text=new_text, parse_mode="Markdown")
+            if query.message:
+                msg_text = getattr(query.message, "text", "") or ""
+                new_text = str(msg_text).replace("🛡 *HERMES NEEDS YOUR PERMISSION*", "❌ *ACTION REJECTED*")
+                await query.edit_message_text(text=new_text, parse_mode="Markdown")
             
     except Exception as e:
         logging.error(f"Error in callback_handler: {e}", exc_info=True)
