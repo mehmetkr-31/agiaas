@@ -10,10 +10,11 @@ from dotenv import load_dotenv
 from run_agent import AIAgent
 
 from reporter import (
-    send_telegram_message, get_project_config, 
+    send_telegram_message, get_project_config,
     request_approval, ensure_repo_cloned, DATA_DIR,
     get_standardized_model, log_step as central_log_step,
-    NOUS_API_BASE_URL, OPENROUTER_BASE_URL
+    NOUS_API_BASE_URL, OPENROUTER_BASE_URL,
+    CORE_HERMES_RULES
 )
 
 load_dotenv()
@@ -83,6 +84,10 @@ YOUR TASKS (in order):
             base_url=target_base_url,
             quiet_mode=True, # No spinners for background agents
             enabled_toolsets=["terminal", "file", "web"],
+            ephemeral_system_prompt=(
+                "You are an autonomous on-call bot. Your goal is to analyze pushed code for errors or bugs.\n"
+                f"{CORE_HERMES_RULES}"
+            ),
         )
         
         # Execute natively

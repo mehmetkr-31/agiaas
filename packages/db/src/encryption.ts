@@ -14,7 +14,10 @@ export function encrypt(text: string): string {
 	const iv = crypto.randomBytes(IV_LENGTH);
 	const cipher = crypto.createCipheriv(ALGORITHM, key, iv);
 
-	const encrypted = Buffer.concat([cipher.update(text, "utf8"), cipher.final()]);
+	const encrypted = Buffer.concat([
+		cipher.update(text, "utf8"),
+		cipher.final(),
+	]);
 	const tag = cipher.getAuthTag();
 
 	// Combine IV + TAG + CIPHERTEXT
@@ -42,7 +45,6 @@ export function decrypt(hash: string): string {
 
 	return decrypted.toString("utf8");
 }
-
 
 function getEncryptionKey(): Buffer {
 	const secret = env.DB_ENCRYPTION_KEY;

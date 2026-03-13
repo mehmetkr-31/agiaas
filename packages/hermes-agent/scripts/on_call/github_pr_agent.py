@@ -3,37 +3,54 @@
 GitHub PR Agent — thin Hermes wrapper.
 Hermes handles everything: reading diff, code review, posting gh pr review.
 """
+
 import os, subprocess, pathlib, logging, time, re
 from typing import Optional
 from datetime import datetime
 from dotenv import load_dotenv
 from run_agent import AIAgent
 from reporter import (
-    send_telegram_message, get_project_config,
-    request_approval, ensure_repo_cloned, DATA_DIR,
-    get_standardized_model, log_step as central_log_step,
-    NOUS_API_BASE_URL, OPENROUTER_BASE_URL
+    send_telegram_message,
+    get_project_config,
+    request_approval,
+    ensure_repo_cloned,
+    DATA_DIR,
+    get_standardized_model,
+    log_step as central_log_step,
+    NOUS_API_BASE_URL,
+    OPENROUTER_BASE_URL,
+    CORE_HERMES_RULES,
 )
 
 load_dotenv()
-AGENT_ROOT  = pathlib.Path(__file__).parent.parent.parent.resolve()
-LOG_DIR     = AGENT_ROOT / "hermes_data" / "on_call_logs"
+AGENT_ROOT = pathlib.Path(__file__).parent.parent.parent.resolve()
+LOG_DIR = AGENT_ROOT / "hermes_data" / "on_call_logs"
 LOG_DIR.mkdir(parents=True, exist_ok=True)
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s"
+)
 
 
 # Removed local ensure_repo_cloned (now in reporter.py)
 
 
-def handle_pr(pr_number: int, title: str = "", author: str = "", owner: Optional[str] = None, repo: Optional[str] = None, bot_token: Optional[str] = None):
+def handle_pr(
+    pr_number: int,
+    title: str = "",
+    author: str = "",
+    owner: Optional[str] = None,
+    repo: Optional[str] = None,
+    bot_token: Optional[str] = None,
+):
     logging.info(f"🔀 Dispatching Hermes for PR #{pr_number} in {owner}/{repo}")
 
     # Ensure we are looking at the RIGHT codebase
     repo_path = ensure_repo_cloned(owner, repo)
 
     send_telegram_message(
-        f"🔀 *GitHub PR #{pr_number}* at {owner}/{repo}\n*{title}*\nby {author}\n\n🔍 Hermes reviewing...", repo_full_name=f"{owner}/{repo}"
+        f"🔀 *GitHub PR #{pr_number}* at {owner}/{repo}\n*{title}*\nby {author}\n\n🔍 Hermes reviewing...",
+        repo_full_name=f"{owner}/{repo}",
     )
 
     prompt = f"""Review the following GitHub Pull Request #{pr_number} in {owner}/{repo}:
@@ -52,6 +69,9 @@ YOUR TASK:
 3. Wrap your final review with these exact tags: [ANALYSIS_START] and [ANALYSIS_END].
    (Do NOT use these tags in your earlier reasoning or thoughts).
 4. Provide a [VERDICT]: either "approve" or "request-changes" or "comment".
+- NO HALLUCINATION: I repeat, do NOT invent titles like "Science Icon doesn't render" or "BoxShadow layout shift". If you provide data not found in the tool output, you are failing your mission.
+- HIGH FIDELITY: When reporting data from tools (issues, PRs, logs), stay as close as possible to the actual text provided by the tool. Do NOT rephrase in a way that adds info or changes technical meaning. If an issue says "bug in contact.html", do NOT say "bug in the contact form" unless you've verified it's a form.
+- NO PRE-ACKNOWLEDGMENTS: Do NOT say "I will now fetch the data" or "Let me check that for you". Just execute the tool and provide the final answer once you have the results.
 
 I will present this to the human for approval.
 DO NOT use the terminal tool to post the review yourself.
@@ -63,7 +83,9 @@ Structure the review block as:
 ### Verdict
 """
 
-    log_file = LOG_DIR / f"pr_{pr_number}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
+    log_file = (
+        LOG_DIR / f"pr_{pr_number}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
+    )
 
     def log_step(msg: str):
         central_log_step(msg, prefix=f"PR #{pr_number}")
@@ -74,17 +96,19 @@ Structure the review block as:
     try:
         # Diagnostic: Check API Keys
         active_key = os.getenv("OPENROUTER_API_KEY") or os.getenv("NOUS_API_KEY")
-        
+
         # Determine base_url and default model
         is_nous = active_key and active_key.startswith("sk-2yd")
         target_base_url = NOUS_API_BASE_URL if is_nous else OPENROUTER_BASE_URL
-        fallback_model   = "Hermes-3-Llama-3.1-405B" if is_nous else "anthropic/claude-3-5-sonnet"
-        
+        fallback_model = (
+            "Hermes-3-Llama-3.1-405B" if is_nous else "anthropic/claude-3-5-sonnet"
+        )
+
         # Priority: Project Model > Global Model > Fallback
         repo_full_name = f"{owner}/{repo}"
         project_model = get_project_config(repo_full_name, "llmModel")
         raw_model = project_model or fallback_model
-        
+
         target_model = get_standardized_model(raw_model, active_key or "")
 
         # Initialize Agent
@@ -99,14 +123,19 @@ Structure the review block as:
                 "STRICT RULES:\n"
                 "- NO DIRECT COMMITS TO MAIN/MASTER: You are ABSOLUTELY FORBIDDEN from pushing commits directly to main or master branches.\n"
                 "- MANDATORY PULL REQUESTS: All codebase changes MUST be done by creating a new branch, committing your changes, pushing the branch, and then creating a Pull Request (gh pr create).\n"
-                "- PULL REQUEST MERGING: If the user explicitly asks you to merge a Pull Request, you may run `gh pr merge <pr_number> --merge --admin` or `gh pr merge <pr_number> --merge`. ONLY do this if they specifically request a merge."
-            )
+                "- PULL REQUEST MERGING: If the user explicitly asks you to merge a Pull Request, you may run `gh pr merge <pr_number> --merge --admin` or `gh pr merge <pr_number> --merge`. ONLY do this if they specifically request a merge.\n"
+                f"{CORE_HERMES_RULES}"
+            ),
         )
-        
+
         # Execute natively
         result = agent.run_conversation(prompt)
-        output_text = str(result.get("final_response", "")) if result and result.get("final_response") else ""
-        
+        output_text = (
+            str(result.get("final_response", ""))
+            if result and result.get("final_response")
+            else ""
+        )
+
         # Log to private file
         with open(log_file, "w") as f:
             f.write(output_text)
@@ -114,7 +143,10 @@ Structure the review block as:
     except Exception as e:
         log_step(f"Hermes FAILED: {e}")
         logging.error(f"PR agent failed: {e}")
-        send_telegram_message(f"❌ Hermes analysis failed for PR #{pr_number}: {e}", repo_full_name=f"{owner}/{repo}")
+        send_telegram_message(
+            f"❌ Hermes analysis failed for PR #{pr_number}: {e}",
+            repo_full_name=f"{owner}/{repo}",
+        )
         return
 
     # Log results
@@ -122,63 +154,104 @@ Structure the review block as:
 
     # Extract analysis block using robust regex
     analysis: str = ""
-    blocks = re.findall(r'\[ANALYSIS_START\](.*?)\[ANALYSIS_END\]', output_text, re.DOTALL)
+    blocks = re.findall(
+        r"\[ANALYSIS_START\](.*?)\[ANALYSIS_END\]", output_text, re.DOTALL
+    )
     if blocks:
         candidates = []
         for b in blocks:
-            cleaned = str(b).replace('│', '').strip()
-            if cleaned: candidates.append(cleaned)
+            cleaned = str(b).replace("│", "").strip()
+            if cleaned:
+                candidates.append(cleaned)
         if candidates:
             analysis = str(max(candidates, key=len))
-    
+
     # Extract verdict - use rpartition to get the latest one provided by the agent
     verdict = "comment"
     if "[VERDICT]:" in output_text:
         v_line = output_text.rpartition("[VERDICT]:")[2].split("\n")[0].strip().lower()
-        if "approve" in v_line: verdict = "approve"
-        elif "request-changes" in v_line: verdict = "request-changes"
-    
+        if "approve" in v_line:
+            verdict = "approve"
+        elif "request-changes" in v_line:
+            verdict = "request-changes"
+
     if not analysis:
         # Fallback: take the last 2000 chars if tags were missed, but clean it
-        analysis_text = str(output_text or "").replace('│', '').strip()
+        analysis_text = str(output_text or "").replace("│", "").strip()
         analysis = analysis_text[-2000:] if len(analysis_text) > 2000 else analysis_text
         logging.warning("Tags [ANALYSIS_START/END] not found for PR. Using fallback.")
-    
+
     log_step(f"Verdict: {verdict}. Waiting for user approval...")
 
     # Request Approval
     approval_text = f"Hermes review for PR #{pr_number} is ready.\n\n*Verdict:* `{verdict.upper()}`\n\n*Review Preview:*\n{analysis[:3800]}..."
-    approved = request_approval(approval_text, f"pr_{pr_number}_{int(time.time())}", repo_full_name=f"{owner}/{repo}")
+    approved = request_approval(
+        approval_text,
+        f"pr_{pr_number}_{int(time.time())}",
+        repo_full_name=f"{owner}/{repo}",
+    )
 
     if approved:
         if not analysis.strip():
             log_step("Approved, but review is empty. Skipping GitHub post.")
             logging.warning("⚠️ Review is empty after approval. Skipping gh pr review.")
-            send_telegram_message(f"ℹ️ Review for PR #{pr_number} was approved but was empty. No review posted.", repo_full_name=f"{owner}/{repo}")
+            send_telegram_message(
+                f"ℹ️ Review for PR #{pr_number} was approved but was empty. No review posted.",
+                repo_full_name=f"{owner}/{repo}",
+            )
             return
 
         log_step("Approved! Posting to GitHub...")
         logging.info("🚀 Approved! Posting PR review to GitHub.")
         try:
-            flag = "--approve" if verdict == "approve" else "--request-changes" if verdict == "request-changes" else "--comment"
+            flag = (
+                "--approve"
+                if verdict == "approve"
+                else "--request-changes"
+                if verdict == "request-changes"
+                else "--comment"
+            )
             process = subprocess.run(
-                ["gh", "pr", "review", str(pr_number), "--repo", f"{owner}/{repo}", flag, "--body", analysis],
-                capture_output=True, text=True
+                [
+                    "gh",
+                    "pr",
+                    "review",
+                    str(pr_number),
+                    "--repo",
+                    f"{owner}/{repo}",
+                    flag,
+                    "--body",
+                    analysis,
+                ],
+                capture_output=True,
+                text=True,
             )
             if process.returncode == 0:
-                send_telegram_message(f"✅ PR review posted to #{pr_number} ({verdict}).", repo_full_name=f"{owner}/{repo}")
+                send_telegram_message(
+                    f"✅ PR review posted to #{pr_number} ({verdict}).",
+                    repo_full_name=f"{owner}/{repo}",
+                )
                 log_step("Posted successfully.")
             else:
                 log_step(f"Post FAILED: {process.stderr[:100]}")
-                send_telegram_message(f"❌ Failed to post PR review: {process.stderr[:200]}", repo_full_name=f"{owner}/{repo}")
+                send_telegram_message(
+                    f"❌ Failed to post PR review: {process.stderr[:200]}",
+                    repo_full_name=f"{owner}/{repo}",
+                )
         except Exception as e:
             logging.error(f"Failed to post PR review: {e}")
-            send_telegram_message(f"❌ Failed to post PR review to #{pr_number}: {e}", repo_full_name=f"{owner}/{repo}")
+            send_telegram_message(
+                f"❌ Failed to post PR review to #{pr_number}: {e}",
+                repo_full_name=f"{owner}/{repo}",
+            )
             log_step(f"Post FAIL: {e}")
     else:
         log_step("Rejected by user.")
         logging.info("🛑 Rejected by user. Skipping evaluation.")
-        send_telegram_message(f"🛑 Review for PR #{pr_number} was rejected by user.", repo_full_name=f"{owner}/{repo}")
+        send_telegram_message(
+            f"🛑 Review for PR #{pr_number} was rejected by user.",
+            repo_full_name=f"{owner}/{repo}",
+        )
 
     logging.info(f"✅ Hermes done for PR #{pr_number}")
     log_step("Mission complete.")
@@ -186,6 +259,7 @@ Structure the review block as:
 
 if __name__ == "__main__":
     import sys, time
+
     if len(sys.argv) < 4:
         print("Usage: python github_pr_agent.py <pr_number> <owner> <repo>")
         sys.exit(1)

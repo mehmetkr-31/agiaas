@@ -7,6 +7,10 @@ export const hermesBots = sqliteTable("hermes_bots", {
 	username: text("username").notNull(),
 	token: text("token").notNull(), // Encrypted
 	avatarUrl: text("avatar_url"),
-	isPrimary: integer("is_primary", { mode: "boolean" }).default(false).notNull(),
-	createdAt: integer("created_at", { mode: "timestamp" }).default(sql`(strftime('%s', 'now'))`).notNull(),
+	isPrimary: integer("is_primary", { mode: "boolean" })
+		.default(false)
+		.notNull(),
+	createdAt: integer("created_at", { mode: "timestamp" })
+		.default(sql`(strftime('%s', 'now'))`)
+		.notNull(),
 });
