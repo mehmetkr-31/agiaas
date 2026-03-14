@@ -397,6 +397,147 @@ async def github_webhook(request: Request, background_tasks: BackgroundTasks):
     return {"status": "accepted", "event": event_type, "action": action}
 
 
+@app.post("/sentry/webhook/{owner}/{repo_name}")
+async def sentry_webhook(
+    owner: str, repo_name: str, request: Request, background_tasks: BackgroundTasks
+):
+    """Sentry webhook receiver."""
+    try:
+        payload = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid JSON")
+
+    action = payload.get("action", "")
+    logging.info(f"📥 Sentry event received: {action} for {owner}/{repo_name}")
+
+    # We only care about newly created issues for now
+    if action == "created":
+        data = payload.get("data", {}).get("issue", {})
+        issue_id = str(data.get("id", ""))
+        title = data.get("title", "Unknown Sentry Issue")
+        permalink = data.get("permalink", "")
+        culprit = data.get("culprit", "")
+        project_slug = data.get("project", {}).get("slug", "")
+
+        bot_token = _get_bot_token_for_repo(f"{owner}/{repo_name}")
+
+        try:
+            from sentry_agent import handle_sentry_issue
+
+            background_tasks.add_task(
+                handle_sentry_issue,
+                issue_id,
+                title,
+                permalink,
+                culprit,
+                project_slug,
+                owner,
+                repo_name,
+                bot_token=bot_token,
+            )
+        except Exception as e:
+            logging.error(
+                f"Failed to dispatch Sentry agent: {e}\n{traceback.format_exc()}"
+            )
+
+    return {"status": "accepted"}
+
+
+@app.post("/vercel/webhook/{owner}/{repo_name}")
+async def vercel_webhook(
+    owner: str, repo_name: str, request: Request, background_tasks: BackgroundTasks
+):
+    """Vercel webhook receiver."""
+    try:
+        payload = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid JSON")
+
+    # Vercel sends different payload formats depending on hook type,
+    # but normally has type, payload.deployment...
+    event_type = payload.get("type", "")
+    data = payload.get("payload", {})
+
+    deployment = data.get("deployment", {})
+    project = data.get("project", {})
+
+    dep_id = deployment.get("id", "")
+    url = deployment.get("url", "")
+    status = ""
+
+    if "error" in event_type or "failed" in event_type:
+        status = "error"
+    elif "succeeded" in event_type or "ready" in event_type:
+        status = "ready"
+    elif "created" in event_type:
+        status = "building"
+    else:
+        status = event_type
+
+    project_name = project.get("name", "Unknown Vercel Project")
+    logging.info(f"📥 Vercel event received: {event_type} for {owner}/{repo_name}")
+
+    bot_token = _get_bot_token_for_repo(f"{owner}/{repo_name}")
+
+    try:
+        from vercel_agent import handle_vercel_deployment
+
+        background_tasks.add_task(
+            handle_vercel_deployment,
+            dep_id,
+            url,
+            project_name,
+            status,
+            owner,
+            repo_name,
+            bot_token=bot_token,
+        )
+    except Exception as e:
+        logging.error(f"Failed to dispatch Vercel agent: {e}\n{traceback.format_exc()}")
+
+    return {"status": "accepted"}
+
+
+@app.post("/cloudflare/webhook/{owner}/{repo_name}")
+async def cloudflare_webhook(
+    owner: str, repo_name: str, request: Request, background_tasks: BackgroundTasks
+):
+    """Cloudflare Pages/Workers webhook receiver."""
+    try:
+        payload = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid JSON")
+
+    # Cloudflare payloads vary heavily based on Pages vs generic worker alerts.
+    # Assuming standard CF Pages webhook format
+    project_name = payload.get("project_name", "Unknown CF Project")
+    status = payload.get("status", "unknown").lower()
+    environment = payload.get("environment", "production")
+
+    logging.info(f"📥 Cloudflare event received: {status} for {owner}/{repo_name}")
+
+    bot_token = _get_bot_token_for_repo(f"{owner}/{repo_name}")
+
+    try:
+        from cloudflare_agent import handle_cloudflare_deployment
+
+        background_tasks.add_task(
+            handle_cloudflare_deployment,
+            project_name,
+            status,
+            environment,
+            owner,
+            repo_name,
+            bot_token=bot_token,
+        )
+    except Exception as e:
+        logging.error(
+            f"Failed to dispatch Cloudflare agent: {e}\n{traceback.format_exc()}"
+        )
+
+    return {"status": "accepted"}
+
+
 @app.get("/logs")
 async def get_logs():
     if not MAIN_LOG_FILE.exists():
