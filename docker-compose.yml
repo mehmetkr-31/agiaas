@@ -9,34 +9,31 @@ services:
     environment:
       - HERMES_PROJECT_ROOT=/app
       - HERMES_DATA_DIR=/app/.tmp
-      - HERMES_DB_FILE=local.db
+      - WEBHOOK_PORT=8678
     volumes:
-      # Persist database
       - ./local.db:/app/local.db
-      # Persist cloned repositories
       - ./.tmp:/app/.tmp
-      # Persist logs
       - ./logs:/app/logs
     ports:
-      - "8090:8090"
+      - "8678:8678"
     restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8090/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 10s
 
-  # Optional: PostgreSQL if needed (not required for SQLite)
-  # postgres:
-  #   image: postgres:16-alpine
-  #   environment:
-  #     POSTGRES_USER: hermes
-  #     POSTGRES_PASSWORD: hermes
-  #     POSTGRES_DB: hermes
-  #   volumes:
-  #     - postgres_data:/var/lib/postgresql/data
-  #   restart: unless-stopped
-
-# volumes:
-#   postgres_data:
+  agi-web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    container_name: agi-web
+    env_file:
+      - .env
+    environment:
+      - DATABASE_URL=file:/app/local.db
+      - BETTER_AUTH_URL=http://localhost:3678
+      - PORT=3678
+      - HERMES_AGENT_URL=http://hermes-agent:8678
+    volumes:
+      - ./local.db:/app/local.db
+    ports:
+      - "3678:3678"
+    restart: unless-stopped
+    depends_on:
+      - hermes-agent
