@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import readline from 'node:readline/promises';
-import { crypto } from 'node:crypto';
+import crypto from 'node:crypto';
 import os from 'node:os';
 
 const rl = readline.createInterface({

@@ -7,7 +7,8 @@ export const onCallRouter = {
 		.input(z.object({ mockUrl: z.string().optional() }))
 		.handler(async ({ input }) => {
 			try {
-				const agentUrl = process.env.HERMES_AGENT_URL || "http://localhost:8678";
+				const agentUrl =
+					process.env.HERMES_AGENT_URL || "http://localhost:8678";
 				const response = await fetch(`${agentUrl}/webhook`, {
 					method: "POST",
 					headers: {
@@ -45,7 +46,8 @@ export const onCallRouter = {
 		.input(z.object({ message: z.string() }))
 		.handler(async ({ input }) => {
 			try {
-				const agentUrl = process.env.HERMES_AGENT_URL || "http://localhost:8678";
+				const agentUrl =
+					process.env.HERMES_AGENT_URL || "http://localhost:8678";
 				const response = await fetch(`${agentUrl}/chat`, {
 					method: "POST",
 					headers: {

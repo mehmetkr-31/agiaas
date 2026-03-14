@@ -584,8 +584,7 @@ export function ASCIIText({
 						if (cancelled) return;
 						const entry = entries[0];
 						if (
-							entry &&
-							entry.isIntersecting &&
+							entry?.isIntersecting &&
 							entry.boundingClientRect.width > 0 &&
 							entry.boundingClientRect.height > 0
 						) {
