@@ -7,7 +7,8 @@ export const onCallRouter = {
 		.input(z.object({ mockUrl: z.string().optional() }))
 		.handler(async ({ input }) => {
 			try {
-				const response = await fetch("http://localhost:8090/webhook", {
+				const agentUrl = process.env.HERMES_AGENT_URL || "http://localhost:8678";
+				const response = await fetch(`${agentUrl}/webhook`, {
 					method: "POST",
 					headers: {
 						"Content-Type": "application/json",
@@ -27,7 +28,8 @@ export const onCallRouter = {
 
 	getLogs: publicProcedure.handler(async () => {
 		try {
-			const response = await fetch("http://localhost:8090/logs");
+			const agentUrl = process.env.HERMES_AGENT_URL || "http://localhost:8678";
+			const response = await fetch(`${agentUrl}/logs`);
 			if (!response.ok) {
 				throw new Error("Failed to get logs");
 			}
@@ -43,7 +45,8 @@ export const onCallRouter = {
 		.input(z.object({ message: z.string() }))
 		.handler(async ({ input }) => {
 			try {
-				const response = await fetch("http://localhost:8090/chat", {
+				const agentUrl = process.env.HERMES_AGENT_URL || "http://localhost:8678";
+				const response = await fetch(`${agentUrl}/chat`, {
 					method: "POST",
 					headers: {
 						"Content-Type": "application/json",

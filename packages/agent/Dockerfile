@@ -7,14 +7,19 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y \
     git \
     curl \
+    patch \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Python dependencies
 COPY packages/agent/hermes_data/requirements.txt /tmp/requirements.txt
 RUN pip install --no-cache-dir -r /tmp/requirements.txt && rm /tmp/requirements.txt
 
-# Copy agent scripts
+# Copy agent scripts and patches
 COPY packages/agent/scripts /app/scripts
+COPY packages/agent/patches /app/patches
+
+# Apply patches to the installed hermes-agent
+RUN python /app/scripts/patch_dependencies.py
 
 # Set environment variables with defaults
 ENV HERMES_PROJECT_ROOT=/app
@@ -28,11 +33,11 @@ RUN mkdir -p /app/.tmp /app/logs /app/scripts/hermes_data/on_call_logs
 RUN chmod +x /app/scripts/on_call/*.py
 
 # Expose webhook port
-EXPOSE 8090
+EXPOSE 8678
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:8090/health || exit 1
+    CMD curl -f http://localhost:8678/health || exit 1
 
 # Default command
 CMD ["python", "-m", "scripts.on_call.reporter"]

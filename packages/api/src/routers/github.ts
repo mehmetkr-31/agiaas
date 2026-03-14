@@ -156,12 +156,13 @@ export const githubRouter = {
 
 	getWebhookStatus: publicProcedure.handler(async () => {
 		try {
-			const response = await fetch("http://localhost:8090/health", {
+			const agentUrl = process.env.HERMES_AGENT_URL || "http://localhost:8678";
+			const response = await fetch(`${agentUrl}/health`, {
 				signal: AbortSignal.timeout(2000),
 			});
-			return { running: response.ok, port: 8090 };
+			return { running: response.ok, port: 8678 };
 		} catch (_error) {
-			return { running: false, port: 8090 };
+			return { running: false, port: 8678 };
 		}
 	}),
 
