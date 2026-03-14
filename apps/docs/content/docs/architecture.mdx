@@ -1,6 +1,6 @@
 ---
 title: System Architecture
-description: Understanding how AGIAAS integrates with the Hermes Agent core.
+description: Understanding how AGIAAS integrates with the Hermes Agent core and external providers.
 icon: Layout
 ---
 
@@ -10,7 +10,7 @@ AGIAAS is built as a modular monorepo, with its primary intelligence powered by 
 
 ## High-Level Flow
 
-The following diagram illustrates how an event on GitHub flows through the AGIAAS infrastructure, triggering the autonomous [Hermes Agent](https://hermes-agent.nousresearch.com/docs/).
+The following diagram illustrates how events from GitHub and external providers flow through the AGIAAS infrastructure, triggering the autonomous agent pipeline.
 
 ```mermaid
 graph TD
@@ -19,53 +19,111 @@ graph TD
         GH_API[GitHub API & CLI]
     end
 
+    subgraph Providers ["External Providers"]
+        Sentry[Sentry Alerts]
+        Vercel[Vercel Deploy Fails]
+        CF[Cloudflare Events]
+    end
+
     subgraph Core ["AGIAAS Core (Monorepo)"]
-        WS[Webhook Server]
-        Agent[Hermes Agent Foundation]
-        DB[(SQLite / Drizzle)]
-        API[Backend API]
+        WS["Webhook Server\n(Cloudflare Tunnel)"]
+        Agent["Python Agent\n(6-Step Pipeline)"]
+        DB[(SQLite / Drizzle\nAES-256-GCM)]
+        API["oRPC Backend\n(Type-Safe)"]
     end
 
     subgraph Interaction ["User Interface"]
-        Web[React Dashboard]
-        Bot[Telegram Gateway]
+        Web["React Dashboard\n(TanStack Start)"]
+        Bot["Telegram Gateway\n(UI Cards)"]
+    end
+
+    subgraph AI ["AI Models"]
+        Claude[Claude-3.5-Sonnet]
+        Hermes[Hermes-3-Llama-3.1]
     end
 
     Events -- "Webhooks" --> WS
+    Sentry -- "Alerts" --> WS
+    Vercel -- "Deploy Status" --> WS
+    CF -- "Health" --> WS
     WS -- "Trigger" --> Agent
-    Agent -- "Analysis" --> AI[Hermes-3 / Claude-3.5]
+    Agent -- "Analysis" --> Claude
+    Agent -- "Analysis" --> Hermes
     Agent -- "Approval Request" --> Bot
     Bot -- "User Action" --> Agent
-    Agent -- "Execute Fixed/PR" --> GH_API
+    Agent -- "Execute Fix/PR" --> GH_API
     Web -- "Management" --> API
     API -- "Data" --> DB
 ```
 
+## The 6-Step Agent Pipeline
+
+When triggered by any webhook event, the agent follows this autonomous pipeline:
+
+```mermaid
+graph LR
+    M["① Monitor\n(Webhook)"] --> R["② Reason\n(Multi-Agent Debate)"]
+    R --> S["③ Research\n(Web + History)"]
+    S --> X["④ Remediate\n(Parallel Tasks)"]
+    X --> P["⑤ Report\n(Telegram Card)"]
+    P --> L["⑥ Learn\n(Runbook)"]
+```
+
+| Step | Component | Description |
+| :--- | :--- | :--- |
+| **Monitor** | `webhook-server` | Receives events from GitHub, Sentry, Vercel, Cloudflare via Cloudflare tunnel |
+| **Reason** | `mixture_of_agents_debate()` | Multi-agent reasoning with Claude / Hermes for root-cause analysis |
+| **Research** | `web_research()` + `session_research()` | Combines web search with historical session data |
+| **Remediate** | `parallel_remediation()` | Executes fix tasks in parallel (patch, restart, cache clear) |
+| **Report** | `send_telegram_message()` | Sends structured UI Card with diff, cost, and approval buttons |
+| **Learn** | `generate_runbook()` | Creates a structured runbook for future incident prevention |
+
 ## Layer Breakdown
 
 ### 📡 Monitoring Layer (`@agiaas/webhook-server`)
-The gateway for all GitHub events. It uses **Cloudflare Tunnels** to receive webhooks and synchronizes them with the Hermes Agent.
+The gateway for all external events. Uses **Cloudflare Tunnels** (auto-provisioned) to receive webhooks and automatically syncs GitHub webhook URLs when the tunnel restarts.
 
-### 🧠 Hermes Brain Layer (`@agiaas/agent`)
-The core intelligence layer. This is a specialized implementation of the [Hermes Agent](https://hermes-agent.nousresearch.com/docs/) that uses **Long-Context LLMs** to:
-1. Parse error logs and issue descriptions using the Hermes coding skills.
-2. Search the codebase for relevant files via the Hermes filesystem tools.
-3. Propose and test code patches autonomously.
+**Supported providers:**
+- GitHub (Issues, PRs, Workflow runs, Pushes)
+- Sentry (New issue alerts)
+- Vercel (Deployment status)
+- Cloudflare (Pages deployment health)
+
+### 🧠 Agent Layer (`@agiaas/agent`)
+The core intelligence layer. A specialized implementation of the [Hermes Agent](https://hermes-agent.nousresearch.com/docs/) that uses **LLMs** to:
+1. Parse error logs and issue descriptions using reasoning skills
+2. Search the codebase for relevant files via filesystem tools
+3. Propose and test code patches autonomously
+4. Generate runbooks after incident resolution
 
 ### 💼 Management Layer (`@agiaas/web` & `@agiaas/api`)
-The administrative hub designed to manage your Hermes instances.
-- **API**: A type-safe **oRPC** backend.
-- **Dashboard**: A React application for monitoring agent performance and the [learning loop](https://hermes-agent.nousresearch.com/docs/).
+The administrative hub for managing your agent instances.
+- **API**: Type-safe **oRPC** backend with Hono
+- **Dashboard**: TanStack Start application for monitoring agent performance, costs, and the incident timeline
 
 ### 📱 Messaging Gateway (Telegram)
-Inspired by the [Hermes Messaging Gateway](https://hermes-agent.nousresearch.com/docs/user-guide/messaging), this provides a secure, mobile-friendly interface for engineers to approve or reject agent actions.
+Provides a secure, mobile-friendly interface for engineers to approve or reject agent actions with structured **UI Cards** that include:
+- Incident context and root-cause summary
+- Proposed code diff
+- Real-time cost tracking (tokens + USD)
+- One-tap action buttons (✅ Approve / ❌ Reject / 💬 Re-Analyze)
+
+### 🔐 Security Layer (`@agiaas/db` + `@agiaas/auth`)
+- **AES-256-GCM encryption** for all stored secrets (GitHub tokens, webhook secrets)
+- **better-auth** session-based authentication for the dashboard
+- **Zod-validated environment** variables via `@t3-oss/env-core`
 
 ## Technology Stack
 
-AGIAAS leverages the modern stack recommended by **Nous Research**:
-
-- **Agent Engine**: [Hermes Agent (Python)](https://hermes-agent.nousresearch.com/docs/).
-- **AI Models**: Hermes-3, Claude-3.5-Sonnet (optimized for Hermes tool-calling).
-- **Messaging**: Integrated Telegram bridge.
-- **Database**: SQLite with Drizzle ORM.
-- **Frontend**: TanStack Start & Tailwind CSS.
+| Layer | Technology |
+| :--- | :--- |
+| **AI Models** | Claude-3.5-Sonnet, Hermes-3-Llama-3.1 (via OpenRouter / Nous Research) |
+| **Agent Engine** | Custom Python agent with Mixture-of-Agents reasoning |
+| **Frontend** | TanStack Start + Tailwind CSS + Radix UI + WebGL (ASCIIText) |
+| **Backend API** | oRPC (end-to-end type safety) + Hono |
+| **Database** | SQLite + Drizzle ORM + AES-256-GCM encrypted secrets |
+| **Authentication** | better-auth (session-based) |
+| **Messaging** | python-telegram-bot (structured UI Cards) |
+| **Infrastructure** | Docker Compose, Cloudflare Tunnels (auto-provisioned) |
+| **Monorepo** | Turborepo + pnpm workspaces |
+| **Code Quality** | Biome (lint + format) + TypeScript strict mode |

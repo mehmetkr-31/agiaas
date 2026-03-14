@@ -1,6 +1,6 @@
 ---
 title: The Hermes Core Layer
-description: Deep dive into the autonomous capabilities powered by the Hermes Agent core.
+description: Deep dive into the autonomous 6-step pipeline powered by the Hermes Agent core.
 ---
 
 # The Hermes Core Layer
@@ -11,33 +11,58 @@ The heart of AGIAAS is the `@agiaas/agent`. This layer is a specialized implemen
 
 AGIAAS leverages the [Hermes Agent's core philosophy](https://hermes-agent.nousresearch.com/docs/): it's not a tethered copilot, but a fully autonomous entity that gets more capable the longer it runs.
 
-### How it Works in AGIAAS
+## The 6-Step Pipeline
 
-When the agent is triggered by a GitHub event, it follows the [Hermes learning loop](https://hermes-agent.nousresearch.com/docs/developer-guide/architecture):
+When triggered by a GitHub event, the agent follows this autonomous pipeline:
 
-#### 1. Context Acquisition
-The agent uses the Hermes [Context Files system](https://hermes-agent.nousresearch.com/docs/user-guide/features/context-files) to ingest relevant codebase parts, issues, and logs.
+### ① Monitor
+The `@agiaas/webhook-server` receives events from GitHub, Sentry, Vercel, or Cloudflare. System stats (CPU, memory) are also checked for anomalies.
 
-#### 2. Hermes Root-Cause Analysis (RCA)
-Using the [Hermes-3-Llama-3.1](https://hermes-agent.nousresearch.com/docs/) model, the agent performs deep reasoning. It acts as an autonomous engineer that:
-- Identifies the exact line of failure using advanced search skills.
-- Suggests fixes based on deep codebase comprehension.
-- Evaluates risks using the Hermes [Security principles](https://hermes-agent.nousresearch.com/docs/user-guide/security).
+### ② Reason — Mixture-of-Agents Debate
+Multiple AI perspectives debate the root cause using `mixture_of_agents_debate()`. This multi-agent reasoning approach produces deeper analysis than single-model inference.
 
-#### 3. Skill-Based Execution
-The agent utilizes the [Hermes Skill System](https://hermes-agent.nousresearch.com/docs/user-guide/features/skills) to execute commands in isolated environments. This includes:
-- Code patching via the `EditFile` skill.
-- Automated testing via the `RunCommand` skill.
-- Repository management via the [MCP Integration](https://hermes-agent.nousresearch.com/docs/user-guide/features/mcp).
+### ③ Research
+The agent combines two research strategies:
+- **Web Research**: Searches for similar issues, known bugs, and solutions online
+- **Session Research**: Reviews historical incident data from previous sessions
 
-#### 4. Unified PR Generation
-If a fix is verified, the agent prepares a Pull Request, utilizing its experience from previous sessions to provide a clear and concise summary of the changes.
+### ④ Remediate — Parallel Execution
+Fix tasks are executed in parallel via `parallel_remediation()`:
+- Code patching via the Hermes `EditFile` skill
+- Service restarts via the `RunCommand` skill
+- Cache clearing and configuration fixes
+
+### ⑤ Report — Telegram UI Cards
+A structured notification is sent via Telegram with:
+- Incident summary and root-cause analysis
+- Generated code diff
+- Real-time cost tracking (tokens + USD)
+- One-tap action buttons: ✅ Approve / ❌ Reject / 💬 Re-Analyze
+
+### ⑥ Learn — Runbook Generation
+Every resolved incident automatically generates a runbook via `generate_runbook()` containing:
+- Incident title and timestamp
+- Root cause analysis
+- Symptoms observed
+- Resolution steps
+- Lessons learned
 
 ## Optimized AI Models
 
-AGIAAS is fine-tuned to work with the best models for the Hermes core:
-- **Hermes-3**: The flagship model from Nous Research, optimized for tool-calling and autonomous reasoning.
-- **Claude-3.5-Sonnet**: A powerful partner for the Hermes engine when extreme reasoning depth is required.
+AGIAAS is designed to work with multiple AI models:
+- **Hermes-3-Llama-3.1**: The flagship model from Nous Research, optimized for tool-calling and autonomous reasoning
+- **Claude-3.5-Sonnet**: A powerful partner when extreme reasoning depth is required
+- **Gemini Flash**: Cost-effective option for initial triage
 
 > [!TIP]
-> To learn more about how Hermes improves over time, check the [Hermes Agent Documentation](https://hermes-agent.nousresearch.com/docs/).
+> Use lighter models for initial triage and reserve Claude-3.5-Sonnet for complex root-cause analysis to optimize costs.
+
+## Custom Tools
+
+AGIAAS extends the Hermes Agent with custom tools:
+
+| Tool | Description |
+| :--- | :--- |
+| `send_message` | Sends structured UI Cards to Telegram with branding, cost tracking, and level-based styling |
+
+The `send_message` tool supports multiple levels: `info`, `success`, `error`, and `incident` — each with distinct visual styling.
