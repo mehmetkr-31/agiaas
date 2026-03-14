@@ -12,7 +12,7 @@
   <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT"/></a>
   <a href="#-tech-stack"><img src="https://img.shields.io/badge/Stack-TypeScript%20%2F%20Python-blue.svg" alt="Stack"/></a>
   <a href="#"><img src="https://img.shields.io/badge/Status-Active-green.svg" alt="Status"/></a>
-  <a href="#-tech-stack"><img src="https://img.shields.io/badge/AI-Claude%20%2F%20Hermes--3-blueviolet.svg" alt="AI Models"/></a>
+  <a href="#-tech-stack"><img src="https://img.shields.io/badge/AI-Claude%20%2F%20Hermes--4--405B-blueviolet.svg" alt="AI Models"/></a>
   <a href="#-tech-stack"><img src="https://img.shields.io/badge/Infra-Docker%20%2B%20Cloudflare-orange.svg" alt="Infrastructure"/></a>
 </p>
 
@@ -62,7 +62,7 @@ When an incident hits your infrastructure, AGIAAS runs a **6-step autonomous pip
 
 ### Incident Intelligence
 - **🎯 Proactive Monitoring** — Real-time tracking of GitHub Issues, PRs, and Workflow failures via webhooks
-- **🧠 Mixture-of-Agents Debate** — Multi-agent reasoning for deep root-cause analysis using Claude-3.5-Sonnet / Hermes-3
+- **🧠 Mixture-of-Agents Debate** — Multi-agent reasoning for deep root-cause analysis using Claude-3.5-Sonnet / Hermes-4-405B
 - **🔍 Contextual Research** — Combines web search with historical session data to inform diagnostic decisions
 - **📓 Auto Runbook Generation** — Every resolved incident produces a structured runbook to prevent recurrence
 
@@ -109,7 +109,7 @@ graph TD
 
     subgraph AI ["AI Models"]
         Claude[Claude-3.5-Sonnet]
-        Hermes[Hermes-3-Llama-3.1]
+        Hermes[Hermes-4-405B]
     end
 
     Events -- "Webhooks" --> WS
@@ -151,7 +151,7 @@ This is a monorepo powered by **Turborepo** and **pnpm**.
 
 | Layer | Technology |
 | :--- | :--- |
-| **AI Models** | Claude-3.5-Sonnet, Hermes-3-Llama-3.1 (via OpenRouter / Nous Research) |
+| **AI Models** | Claude-3.5-Sonnet, Hermes-4-405B (via OpenRouter / Nous Research) |
 | **Agent Engine** | Custom Python agent with Mixture-of-Agents reasoning |
 | **Frontend** | TanStack Start + Tailwind CSS + Radix UI + WebGL (ASCIIText) |
 | **Backend API** | oRPC (end-to-end type safety) + Hono |
@@ -264,7 +264,7 @@ AGIAAS provides real-time financial tracking for AI operations:
 - **Budget alerts** — Set `AI_BUDGET_LIMIT` to receive Telegram notifications when daily spend exceeds threshold
 
 > [!TIP]
-> Use lighter models (Hermes-3, Gemini Flash) for initial triage and reserve Claude-3.5-Sonnet for complex root-cause analysis to optimize costs.
+> Use lighter models (Hermes-4-405B, Gemini Flash) for initial triage and reserve Claude-3.5-Sonnet for complex root-cause analysis to optimize costs.
 
 ---
 

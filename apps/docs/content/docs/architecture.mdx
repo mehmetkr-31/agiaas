@@ -39,7 +39,7 @@ graph TD
 
     subgraph AI ["AI Models"]
         Claude[Claude-3.5-Sonnet]
-        Hermes[Hermes-3-Llama-3.1]
+        Hermes[Hermes-4-405B]
     end
 
     Events -- "Webhooks" --> WS
@@ -117,7 +117,7 @@ Provides a secure, mobile-friendly interface for engineers to approve or reject 
 
 | Layer | Technology |
 | :--- | :--- |
-| **AI Models** | Claude-3.5-Sonnet, Hermes-3-Llama-3.1 (via OpenRouter / Nous Research) |
+| **AI Models** | Claude-3.5-Sonnet, Hermes-4-405B (via OpenRouter / Nous Research) |
 | **Agent Engine** | Custom Python agent with Mixture-of-Agents reasoning |
 | **Frontend** | TanStack Start + Tailwind CSS + Radix UI + WebGL (ASCIIText) |
 | **Backend API** | oRPC (end-to-end type safety) + Hono |
