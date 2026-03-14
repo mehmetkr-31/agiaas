@@ -511,7 +511,11 @@ importers:
         specifier: ^5.9.3
         version: 5.9.3
 
-  packages/webhook-server: {}
+  packages/webhook-server:
+    dependencies:
+      dotenv:
+        specifier: 'catalog:'
+        version: 17.3.1
 
 packages:
 

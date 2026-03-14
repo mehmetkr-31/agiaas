@@ -1,59 +1,80 @@
 ---
 title: Introduction
-description: Welcome to AGIAAS - The Autonomous GitHub Incident Analysis & Automation System, built on the Hermes Agent foundation.
+description: Welcome to AGIAAS — The Autonomous GitHub Incident Analysis & Automation System. Your AI-powered on-call engineer that never sleeps.
 icon: Rocket
 ---
 
 # AGIAAS
 
-AGIAAS is an **Intelligent Agent Platform** designed to revolutionize how engineering teams handle incidents. Built on the core foundations of [Hermes Agent](https://hermes-agent.nousresearch.com/docs/), it monitors your GitHub infrastructure, identifies anomalies using state-of-the-loop AI, and facilitates automated fixes via a human-in-the-loop workflow.
+**AGIAAS** (Autonomous GitHub Incident Analysis & Automation System) is an **Intelligent Agent Platform** that monitors your GitHub infrastructure, analyzes anomalies using state-of-the-art AI, and facilitates automated fixes via a Telegram-integrated **human-in-the-loop** workflow.
+
+> Think of it as an on-call SRE that watches your repos 24/7 — triages incidents, writes patches, opens PRs, and waits for your approval before merging. All from your phone.
 
 ## Built with Hermes Agent
 
-AGIAAS isn't just another wrapper; it's an application of the [Hermes Agent](https://hermes-agent.nousresearch.com/docs/) paradigm. We leverage the self-improving autonomous engine developed by **Nous Research** to handle complex coding and debugging tasks.
+AGIAAS is built on the [Hermes Agent](https://hermes-agent.nousresearch.com/docs/) paradigm by **Nous Research**. We leverage the self-improving autonomous engine to handle complex coding and debugging tasks — it's not a tethered copilot, it's a fully autonomous agent.
 
-## Why AGIAAS?
+## The 6-Step Pipeline
 
-In modern DevOps, incident response is often reactive and manual. AGIAAS shifts this paradigm by introducing an autonomous layer that acts as your first responder, leveraging [Hermes Agent's](https://hermes-agent.nousresearch.com/docs/) ability to work anywhere—from simple VPS to serverless infrastructure.
+When an incident hits, AGIAAS runs an autonomous pipeline:
 
-### Core Value Props
+1. **Monitor** — GitHub webhook fires (issue, PR fail, CI error)
+2. **Reason** — Mixture-of-Agents debate for root-cause analysis
+3. **Research** — Web search + session history for context
+4. **Remediate** — Parallel task execution (patch, restart, cache)
+5. **Report** — Telegram UI Card with diff, cost, and approval buttons
+6. **Learn** — Auto-generated runbook for future incidents
+
+## Core Capabilities
 
 <Cards>
-  <Card 
-    title="Proactive Monitoring" 
-    description="Real-time tracking of GitHub Issues, PRs, and Workflow failures." 
+  <Card
+    title="Proactive Monitoring"
+    description="Real-time tracking of GitHub Issues, PRs, Workflow failures, Sentry errors, and Vercel deploys."
     icon="Eye"
   />
-  <Card 
-    title="Hermes Intelligence" 
-    description="Powered by the self-improving Hermes Agent core from Nous Research." 
+  <Card
+    title="Multi-Agent Reasoning"
+    description="Mixture-of-Agents debate using Hermes-3 and Claude-3.5-Sonnet for deep root-cause analysis."
     icon="Brain"
   />
-  <Card 
-    title="Human-in-the-Loop" 
-    description="You maintain control via Telegram - approve AI PRs with a single tap, a flow inspired by Hermes' messaging gateway." 
+  <Card
+    title="Human-in-the-Loop"
+    description="Approve AI-generated patches via Telegram with a single tap. You stay in control."
     icon="UserCheck"
   />
-  <Card 
-    title="Cost Transparent" 
-    description="Real-time financial tracking for every AI operation." 
+  <Card
+    title="Cost Transparent"
+    description="Real-time token usage and cost calculation for every AI operation, per incident."
     icon="DollarSign"
+  />
+  <Card
+    title="Auto Runbooks"
+    description="Every resolved incident produces a structured runbook to prevent recurrence."
+    icon="BookOpen"
+  />
+  <Card
+    title="Zero-Config Webhooks"
+    description="Cloudflare tunnels auto-provisioned. GitHub webhook URLs synced automatically."
+    icon="Zap"
   />
 </Cards>
 
 ## Key Features
 
-- **🤖 Hermes Core**: Leverage the specialized [Hermes-3-Llama-3.1](https://hermes-agent.nousresearch.com/docs/) model for superior tool-calling and code analysis.
-- **🧠 Autonomous Patching**: Full codebase exploration and fixing using the Hermes Agent skills system.
-- **📱 Mobile Approval**: Approve or reject AI actions directly from Telegram via the integrated gateway.
-- **📡 Auto-Webhook**: Zero-config synchronization with your GitHub repositories.
-- **💰 Token Economics**: Dynamic cost calculation based on actual model usage.
+- **🧠 Multi-Agent Reasoning**: Mixture-of-Agents debate for deep root-cause analysis using Hermes-3 / Claude-3.5-Sonnet
+- **🛠️ Autonomous Patching**: Full codebase exploration, code patching, and PR generation
+- **📱 Mobile Approval**: Approve or reject AI actions via structured Telegram UI Cards
+- **📡 Multi-Provider Webhooks**: GitHub, Sentry, Vercel, and Cloudflare event ingestion
+- **💰 Token Economics**: Dynamic cost calculation based on actual model usage via OpenRouter
+- **📓 Auto Runbooks**: Every resolved incident generates a runbook for future reference
+- **🔐 AES-256-GCM Encryption**: All secrets encrypted at rest
+- **⏪ CI/CD Rollback**: One-tap rollback to the last successful workflow run
 
 ## Next Steps
 
-Ready to secure your infrastructure with the power of Hermes?
-
 <Cards>
-  <Card title="Installation" href="/docs/getting-started/installation" icon="Install" />
+  <Card title="Installation" href="/docs/getting-started/installation" icon="Download" />
+  <Card title="Configuration" href="/docs/getting-started/configuration" icon="Settings" />
   <Card title="Architecture" href="/docs/architecture" icon="Map" />
 </Cards>
